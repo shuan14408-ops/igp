@@ -1,1184 +1,931 @@
-import React, { useState, useEffect } from 'react';
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IGP 個別輔導計畫系統</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+  <script src="https://unpkg.com/docx@8.2.2/build/index.umd.js"></script>
+  <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Noto Sans TC', sans-serif; }
+    input, select, textarea, button { font-family: inherit; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid #9B8AC4; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyB_Gjscmk9pm31gsB5eVTBXtisIVFyDm6w",
+      authDomain: "igp-system.firebaseapp.com",
+      databaseURL: "https://igp-system-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "igp-system",
+      storageBucket: "igp-system.firebasestorage.app",
+      messagingSenderId: "403709187781",
+      appId: "1:403709187781:web:2afd0b3d65d239f1fe02ac"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-// IGP 整合系統 - 自動同步版
-export default function IGPSystem() {
-  const [userRole, setUserRole] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showPasswordChange, setShowPasswordChange] = useState(false);
-  const [password, setPassword] = useState('0424');
-  const [passwordInput, setPasswordInput] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [oldPassword, setOldPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [changePasswordError, setChangePasswordError] = useState('');
-  const [changePasswordSuccess, setChangePasswordSuccess] = useState(false);
+    let state = {
+      userRole: null, isAuthenticated: false, password: localStorage.getItem('igp_pwd') || '0424',
+      step: 0, toast: '', submitting: false, submitted: false, loading: true,
+      submissions: [], selectedStudent: null, form: getDefaultForm()
+    };
 
-  useEffect(() => {
-    loadPassword();
-  }, []);
-
-  const loadPassword = async () => {
-    try {
-      const result = await window.storage.get('igp_teacher_password');
-      if (result && result.value) {
-        setPassword(result.value);
-      }
-    } catch (e) {
-      // 使用預設密碼
-    }
-  };
-
-  const savePassword = async (newPwd) => {
-    setPassword(newPwd);
-    try {
-      await window.storage.set('igp_teacher_password', newPwd);
-    } catch (e) {
-      console.error('儲存密碼失敗');
-    }
-  };
-
-  const handleLogin = () => {
-    if (passwordInput === password) {
-      setIsAuthenticated(true);
-      setPasswordError('');
-    } else {
-      setPasswordError('密碼錯誤，請重新輸入');
-    }
-  };
-
-  const handleChangePassword = async () => {
-    setChangePasswordError('');
-    setChangePasswordSuccess(false);
-    
-    if (oldPassword !== password) {
-      setChangePasswordError('舊密碼不正確');
-      return;
-    }
-    if (newPassword.length < 4) {
-      setChangePasswordError('新密碼至少需要4個字元');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setChangePasswordError('新密碼與確認密碼不符');
-      return;
-    }
-    
-    await savePassword(newPassword);
-    setChangePasswordSuccess(true);
-    setOldPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    
-    setTimeout(() => {
-      setShowPasswordChange(false);
-      setChangePasswordSuccess(false);
-    }, 2000);
-  };
-
-  const handleLogout = () => {
-    setUserRole(null);
-    setIsAuthenticated(false);
-    setPasswordInput('');
-  };
-
-  const commonStyles = {
-    container: {
-      fontFamily: "'Noto Sans TC', 'Nunito', sans-serif",
-      minHeight: '100vh',
-      padding: '20px',
-      color: '#4A4A6A'
-    },
-    card: {
-      background: 'white',
-      borderRadius: '30px',
-      padding: '40px',
-      boxShadow: '0 15px 50px rgba(0,0,0,0.1)',
-      maxWidth: '500px',
-      margin: '0 auto'
-    },
-    input: {
-      width: '100%',
-      padding: '15px 20px',
-      border: '2px solid #E0E0E0',
-      borderRadius: '15px',
-      fontSize: '1.1rem',
-      boxSizing: 'border-box',
-      outline: 'none',
-      marginBottom: '15px'
-    },
-    btn: {
-      padding: '15px 40px',
-      border: 'none',
-      borderRadius: '25px',
-      fontSize: '1.1rem',
-      fontWeight: '700',
-      cursor: 'pointer',
-      transition: 'all 0.3s ease'
-    }
-  };
-
-  // 角色選擇頁面
-  const RoleSelectionPage = () => (
-    <div style={{
-      ...commonStyles.container,
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    }}>
-      <div style={commonStyles.card}>
-        <div style={{textAlign: 'center', marginBottom: '40px'}}>
-          <div style={{fontSize: '4rem', marginBottom: '20px'}}>📚</div>
-          <h1 style={{
-            fontSize: '2rem',
-            fontWeight: '800',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            marginBottom: '10px'
-          }}>
-            IGP 個別輔導計畫系統
-          </h1>
-          <p style={{color: '#6B6B8D', fontSize: '1rem'}}>
-            資賦優異學生個別輔導計畫填寫平台
-          </p>
-        </div>
-
-        <h2 style={{textAlign: 'center', marginBottom: '30px', color: '#4A4A6A', fontSize: '1.3rem'}}>
-          請選擇您的身份
-        </h2>
-
-        <div style={{display: 'flex', flexDirection: 'column', gap: '20px'}}>
-          <button
-            style={{
-              ...commonStyles.btn,
-              background: 'linear-gradient(135deg, #FF9A8B 0%, #FF6B95 100%)',
-              color: 'white',
-              boxShadow: '0 8px 25px rgba(255, 107, 149, 0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '15px',
-              padding: '25px'
-            }}
-            onClick={() => setUserRole('parent')}
-          >
-            <span style={{fontSize: '2rem'}}>👨‍👩‍👧</span>
-            <div style={{textAlign: 'left'}}>
-              <div style={{fontSize: '1.3rem'}}>我是家長</div>
-              <div style={{fontSize: '0.85rem', opacity: 0.9, fontWeight: '500'}}>填寫學生基本資料並繳交</div>
-            </div>
-          </button>
-
-          <button
-            style={{
-              ...commonStyles.btn,
-              background: 'linear-gradient(135deg, #7ECEC6 0%, #5EBEB6 100%)',
-              color: 'white',
-              boxShadow: '0 8px 25px rgba(126, 206, 198, 0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '15px',
-              padding: '25px'
-            }}
-            onClick={() => setUserRole('teacher')}
-          >
-            <span style={{fontSize: '2rem'}}>👩‍🏫</span>
-            <div style={{textAlign: 'left'}}>
-              <div style={{fontSize: '1.3rem'}}>我是教師</div>
-              <div style={{fontSize: '0.85rem', opacity: 0.9, fontWeight: '500'}}>查看繳交資料並完成 IGP</div>
-            </div>
-          </button>
-        </div>
-
-        <p style={{textAlign: 'center', marginTop: '30px', color: '#999', fontSize: '0.85rem'}}>
-          © 2024 IGP System v2.0
-        </p>
-      </div>
-    </div>
-  );
-
-  // 教師登入頁面
-  const TeacherLoginPage = () => (
-    <div style={{
-      ...commonStyles.container,
-      background: 'linear-gradient(135deg, #A8E6E0 0%, #FFF9F0 50%, #FFF8DC 100%)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    }}>
-      <div style={commonStyles.card}>
-        <div style={{textAlign: 'center', marginBottom: '30px'}}>
-          <div style={{fontSize: '4rem', marginBottom: '15px'}}>🔐</div>
-          <h1 style={{fontSize: '1.8rem', fontWeight: '800', color: '#7ECEC6', marginBottom: '10px'}}>
-            教師登入
-          </h1>
-          <p style={{color: '#6B6B8D'}}>請輸入密碼以進入系統</p>
-        </div>
-
-        <div style={{marginBottom: '20px'}}>
-          <label style={{display: 'block', marginBottom: '8px', fontWeight: '600', color: '#4A4A6A'}}>密碼</label>
-          <input
-            type="password"
-            style={{...commonStyles.input, borderColor: passwordError ? '#FF6B6B' : '#A8E6E0'}}
-            value={passwordInput}
-            onChange={e => { setPasswordInput(e.target.value); setPasswordError(''); }}
-            onKeyPress={e => e.key === 'Enter' && handleLogin()}
-            placeholder="請輸入密碼"
-            autoFocus
-          />
-          {passwordError && <p style={{color: '#FF6B6B', fontSize: '0.9rem', marginTop: '-10px'}}>{passwordError}</p>}
-        </div>
-
-        <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
-          <button
-            style={{...commonStyles.btn, width: '100%', background: 'linear-gradient(135deg, #7ECEC6 0%, #5EBEB6 100%)', color: 'white', boxShadow: '0 6px 20px rgba(126, 206, 198, 0.4)'}}
-            onClick={handleLogin}
-          >登入</button>
-          
-          <button
-            style={{...commonStyles.btn, width: '100%', background: 'white', color: '#7ECEC6', border: '2px solid #7ECEC6'}}
-            onClick={() => setUserRole(null)}
-          >← 返回選擇身份</button>
-        </div>
-
-        <div style={{textAlign: 'center', marginTop: '25px'}}>
-          <button
-            style={{background: 'none', border: 'none', color: '#9B8AC4', cursor: 'pointer', fontSize: '0.9rem', textDecoration: 'underline'}}
-            onClick={() => setShowPasswordChange(true)}
-          >🔧 修改密碼</button>
-        </div>
-      </div>
-
-      {showPasswordChange && (
-        <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000}}>
-          <div style={{...commonStyles.card, maxWidth: '400px'}}>
-            <h2 style={{textAlign: 'center', marginBottom: '25px', color: '#9B8AC4'}}>🔧 修改密碼</h2>
-            <div style={{marginBottom: '15px'}}>
-              <label style={{display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.9rem'}}>舊密碼</label>
-              <input type="password" style={{...commonStyles.input, padding: '12px 15px', fontSize: '1rem'}} value={oldPassword} onChange={e => setOldPassword(e.target.value)} placeholder="請輸入舊密碼" />
-            </div>
-            <div style={{marginBottom: '15px'}}>
-              <label style={{display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.9rem'}}>新密碼</label>
-              <input type="password" style={{...commonStyles.input, padding: '12px 15px', fontSize: '1rem'}} value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="至少4字元" />
-            </div>
-            <div style={{marginBottom: '20px'}}>
-              <label style={{display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.9rem'}}>確認新密碼</label>
-              <input type="password" style={{...commonStyles.input, padding: '12px 15px', fontSize: '1rem'}} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="再次輸入新密碼" />
-            </div>
-            {changePasswordError && <p style={{color: '#FF6B6B', fontSize: '0.9rem', textAlign: 'center', marginBottom: '15px'}}>❌ {changePasswordError}</p>}
-            {changePasswordSuccess && <p style={{color: '#4CAF50', fontSize: '0.9rem', textAlign: 'center', marginBottom: '15px'}}>✅ 密碼修改成功！</p>}
-            <div style={{display: 'flex', gap: '10px'}}>
-              <button style={{...commonStyles.btn, flex: 1, background: '#E0E0E0', color: '#666', padding: '12px'}} onClick={() => { setShowPasswordChange(false); setOldPassword(''); setNewPassword(''); setConfirmPassword(''); setChangePasswordError(''); }}>取消</button>
-              <button style={{...commonStyles.btn, flex: 1, background: 'linear-gradient(135deg, #9B8AC4 0%, #7B6BA4 100%)', color: 'white', padding: '12px'}} onClick={handleChangePassword}>確認修改</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  if (userRole === null) return <RoleSelectionPage />;
-  if (userRole === 'teacher' && !isAuthenticated) return <TeacherLoginPage />;
-  if (userRole === 'parent') return <ParentVersion onLogout={handleLogout} />;
-  if (userRole === 'teacher' && isAuthenticated) return <TeacherVersion onLogout={handleLogout} password={password} savePassword={savePassword} />;
-  return null;
-}
-
-// ==================== 家長版組件 ====================
-function ParentVersion({ onLogout }) {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    studentName: '', birthDate: '', gender: '男', studentEmail: '', address: '', phone: '',
-    guardian: '', guardianPhone: '', guardianRelation: '父',
-    schoolYear: '114', semester: '上學期', school: '', grade: '3', classNumber: '', homeTeacher: '',
-    actualCaregiver: '父', economicStatus: '小康', parentingStyle: '民主式', familyInteraction: '良好', parentExpectation: '',
-    familyMembers: [{ relation: '', name: '', major: '', specialty: '', phone: '', workplace: '' }],
-    scienceInterests: [], humanitiesInterests: [], otherInterests: [],
-    awards: [{ date: '', competition: '', organizer: '', prize: '', type: '個人' }],
-    subjectPerformance: { chinese: '優良', math: '優良', music: '普通', art: '優良', pe: '優良' },
-    weekdayLearning: '', weekendLearning: '',
-    cognitiveTraits: {}, emotionalTraits: {}, academicAbilities: {},
-    submittedAt: null, status: 'pending'
-  });
-
-  const steps = [
-    { id: 0, label: '基本資料', icon: '👤' },
-    { id: 1, label: '家庭背景', icon: '👨‍👩‍👧' },
-    { id: 2, label: '評量紀錄', icon: '📊' },
-    { id: 3, label: '特質評估', icon: '⭐' },
-    { id: 4, label: '確認繳交', icon: '✅' }
-  ];
-
-  const showToast = (message, type = 'success') => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
-  };
-
-  const updateFormData = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const updateNestedData = (field, index, subfield, value) => {
-    setFormData(prev => {
-      const newArray = [...prev[field]];
-      newArray[index] = { ...newArray[index], [subfield]: value };
-      return { ...prev, [field]: newArray };
-    });
-  };
-
-  const addArrayItem = (field, template) => {
-    setFormData(prev => ({ ...prev, [field]: [...prev[field], template] }));
-  };
-
-  const removeArrayItem = (field, index) => {
-    setFormData(prev => ({ ...prev, [field]: prev[field].filter((_, i) => i !== index) }));
-  };
-
-  // 繳交資料到共享儲存
-  const submitData = async () => {
-    if (!formData.studentName || !formData.school || !formData.guardian) {
-      showToast('請填寫必要欄位（學生姓名、學校、法定代理人）', 'error');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const submissionData = {
-        ...formData,
-        submittedAt: new Date().toISOString(),
-        status: 'pending'
+    function getDefaultForm() {
+      return {
+        studentName: '', birthDate: '', gender: '男', email: '', homePhone: '', address: '',
+        guardian: '', guardianPhone: '', guardianRelation: '父',
+        schoolYear: '114', semester: '上學期', school: '', grade: '3', classNumber: '', homeTeacher: '',
+        actualCaregiver: '父', economicStatus: '小康', parentingStyle: '民主式', familyInteraction: '良好', parentExpectation: '',
+        scienceInterests: [], humanitiesInterests: [], otherInterests: [],
+        cognitiveTraits: {}, emotionalTraits: {},
+        identificationNumber: '', caseTeacher: '',
+        educationStage: '國小', giftedType: '創造能力', placementType: '分散式資源班',
+        familyMembers: [{ relation: '', name: '', education: '', specialty: '', phone: '', workplace: '' }],
+        strengths: [], weaknesses: [], analysisDescription: '',
+        analysisDate: '', analysisWriter: '',
+        courses: [{ domain: '', courseName: '', teacher: '', goals: '' }],
+        timetable: {}, timetableNote: '',
+        meetings: [{ title: '', date: '', time: '', location: '', attendees: '', content: '', recorder: '' }]
       };
-      
-      const key = `igp_submission:${formData.school}_${formData.grade}_${formData.classNumber}_${formData.studentName}`;
-      await window.storage.set(key, JSON.stringify(submissionData), true);
-      
-      setIsSubmitted(true);
-      showToast('✅ 資料已成功繳交給老師！');
-    } catch (error) {
-      console.error('繳交失敗:', error);
-      showToast('❌ 繳交失敗，請稍後再試', 'error');
-    } finally {
-      setIsSubmitting(false);
     }
-  };
 
-  const styles = {
-    container: {
-      fontFamily: "'Noto Sans TC', 'Nunito', sans-serif",
-      background: 'linear-gradient(135deg, #FFE4E1 0%, #FFF9F0 50%, #E8F5E9 100%)',
-      minHeight: '100vh',
-      padding: '20px',
-      color: '#4A4A6A'
-    },
-    header: {
-      background: 'linear-gradient(135deg, #FF9A8B 0%, #FF6B95 50%, #FF8E53 100%)',
-      borderRadius: '25px',
-      padding: '25px 30px',
-      marginBottom: '25px',
-      boxShadow: '0 10px 40px rgba(255, 107, 149, 0.3)',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      flexWrap: 'wrap',
-      gap: '15px'
-    },
-    headerTitle: { fontSize: '1.6rem', fontWeight: '800', color: 'white', margin: 0 },
-    headerBadge: { display: 'inline-block', background: 'rgba(255,255,255,0.3)', padding: '6px 16px', borderRadius: '15px', color: 'white', fontWeight: '600', fontSize: '0.9rem' },
-    logoutBtn: { padding: '10px 20px', border: '2px solid white', borderRadius: '15px', background: 'transparent', color: 'white', fontWeight: '600', cursor: 'pointer', fontSize: '0.85rem' },
-    progressContainer: { background: 'white', borderRadius: '18px', padding: '15px 20px', marginBottom: '25px', boxShadow: '0 5px 20px rgba(0,0,0,0.08)' },
-    progressSteps: { display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' },
-    step: { display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', flex: 1, minWidth: '60px' },
-    stepCircle: { width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', color: 'white', boxShadow: '0 3px 10px rgba(0,0,0,0.1)', fontSize: '14px' },
-    stepLabel: { marginTop: '6px', fontSize: '0.7rem', fontWeight: '500', textAlign: 'center' },
-    formSection: { background: 'white', borderRadius: '25px', padding: '25px', marginBottom: '25px', boxShadow: '0 10px 40px rgba(0,0,0,0.08)', position: 'relative', overflow: 'hidden' },
-    sectionBar: { position: 'absolute', top: 0, left: 0, width: '100%', height: '6px', background: 'linear-gradient(90deg, #FF9A8B 0%, #FF6B95 50%, #FF8E53 100%)' },
-    sectionTitle: { fontSize: '1.3rem', fontWeight: '800', color: '#FF6B95', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' },
-    formGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' },
-    formGroup: { marginBottom: '10px' },
-    label: { display: 'block', marginBottom: '5px', fontWeight: '600', color: '#4A4A6A', fontSize: '0.85rem' },
-    input: { width: '100%', padding: '10px 12px', border: '2px solid #FFD1DC', borderRadius: '10px', fontSize: '0.9rem', background: '#FFF9F9', boxSizing: 'border-box', outline: 'none' },
-    select: { width: '100%', padding: '10px 12px', border: '2px solid #FFD1DC', borderRadius: '10px', fontSize: '0.9rem', background: '#FFF9F9', boxSizing: 'border-box', outline: 'none' },
-    textarea: { width: '100%', padding: '10px 12px', border: '2px solid #FFD1DC', borderRadius: '10px', fontSize: '0.9rem', background: '#FFF9F9', boxSizing: 'border-box', minHeight: '80px', resize: 'vertical', outline: 'none' },
-    infoCard: { background: 'linear-gradient(135deg, #FFF0F3 0%, #FFE4EC 100%)', borderRadius: '12px', padding: '12px', marginBottom: '15px', borderLeft: '4px solid #FF6B95', fontSize: '0.85rem' },
-    checkboxGroup: { display: 'flex', flexWrap: 'wrap', gap: '6px' },
-    checkboxItem: { padding: '6px 12px', borderRadius: '15px', cursor: 'pointer', fontSize: '0.8rem', transition: 'all 0.3s ease' },
-    dynamicListItem: { background: '#FFF9F9', borderRadius: '12px', padding: '12px', marginBottom: '10px', position: 'relative', border: '2px solid #FFD1DC' },
-    removeBtn: { position: 'absolute', top: '6px', right: '6px', width: '24px', height: '24px', borderRadius: '50%', border: 'none', background: '#FF6B95', color: 'white', cursor: 'pointer', fontSize: '0.9rem', lineHeight: '1' },
-    addBtn: { width: '100%', padding: '10px', border: '2px dashed #FF6B95', borderRadius: '12px', background: 'transparent', color: '#FF6B95', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer' },
-    btnGroup: { display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '20px', flexWrap: 'wrap' },
-    btnPrimary: { padding: '12px 30px', border: 'none', borderRadius: '20px', fontSize: '0.95rem', fontWeight: '700', cursor: 'pointer', background: 'linear-gradient(135deg, #FF6B95 0%, #FF8E53 100%)', color: 'white', boxShadow: '0 5px 15px rgba(255, 107, 149, 0.4)' },
-    btnSecondary: { padding: '12px 30px', border: '2px solid #FF6B95', borderRadius: '20px', fontSize: '0.95rem', fontWeight: '700', cursor: 'pointer', background: 'white', color: '#FF6B95' },
-    btnSubmit: { padding: '18px 50px', border: 'none', borderRadius: '25px', fontSize: '1.2rem', fontWeight: '700', cursor: 'pointer', background: 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)', color: 'white', boxShadow: '0 8px 25px rgba(76, 175, 80, 0.4)' },
-    toast: { position: 'fixed', bottom: '30px', right: '30px', padding: '18px 28px', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', fontWeight: '600', zIndex: 1000 },
-    ratingGroup: { background: '#FFF9F9', borderRadius: '10px', padding: '10px', marginBottom: '6px' },
-    ratingScale: { display: 'flex', gap: '5px', marginTop: '5px' },
-    ratingBtn: { width: '32px', height: '32px', borderRadius: '8px', border: '2px solid #FFD1DC', background: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem' },
-    successCard: { background: 'linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%)', borderRadius: '20px', padding: '40px', textAlign: 'center', marginTop: '20px' }
-  };
+    function setState(newState) { state = { ...state, ...newState }; render(); }
+    function showToast(msg) { state.toast = msg; render(); setTimeout(() => { state.toast = ''; render(); }, 3000); }
 
-  // 基本資料
-  const BasicInfoForm = () => (
-    <div style={styles.formSection}>
-      <div style={styles.sectionBar}></div>
-      <h2 style={styles.sectionTitle}>👤 基本資料</h2>
-      <div style={styles.infoCard}><p>👋 請填寫孩子的基本資料</p></div>
-      <div style={styles.formGrid}>
-        <div style={styles.formGroup}><label style={styles.label}>學生姓名 *</label><input style={styles.input} value={formData.studentName} onChange={e => updateFormData('studentName', e.target.value)} placeholder="請輸入學生姓名" /></div>
-        <div style={styles.formGroup}><label style={styles.label}>出生日期</label><input style={styles.input} type="date" value={formData.birthDate} onChange={e => updateFormData('birthDate', e.target.value)} /></div>
-        <div style={styles.formGroup}><label style={styles.label}>性別</label><select style={styles.select} value={formData.gender} onChange={e => updateFormData('gender', e.target.value)}><option value="男">男</option><option value="女">女</option></select></div>
-        <div style={styles.formGroup}><label style={styles.label}>Email</label><input style={styles.input} type="email" value={formData.studentEmail} onChange={e => updateFormData('studentEmail', e.target.value)} /></div>
-        <div style={styles.formGroup}><label style={styles.label}>電話</label><input style={styles.input} value={formData.phone} onChange={e => updateFormData('phone', e.target.value)} /></div>
-        <div style={styles.formGroup}><label style={styles.label}>住址</label><input style={styles.input} value={formData.address} onChange={e => updateFormData('address', e.target.value)} /></div>
-      </div>
-      <h3 style={{marginTop: '20px', marginBottom: '12px', color: '#FF6B95', fontSize: '1rem'}}>學校資訊</h3>
-      <div style={styles.formGrid}>
-        <div style={styles.formGroup}><label style={styles.label}>學年度 *</label><input style={styles.input} value={formData.schoolYear} onChange={e => updateFormData('schoolYear', e.target.value)} /></div>
-        <div style={styles.formGroup}><label style={styles.label}>學期</label><select style={styles.select} value={formData.semester} onChange={e => updateFormData('semester', e.target.value)}><option value="上學期">上學期</option><option value="下學期">下學期</option></select></div>
-        <div style={styles.formGroup}><label style={styles.label}>學校 *</label><input style={styles.input} value={formData.school} onChange={e => updateFormData('school', e.target.value)} placeholder="例：同德國小" /></div>
-        <div style={styles.formGroup}><label style={styles.label}>年級</label><select style={styles.select} value={formData.grade} onChange={e => updateFormData('grade', e.target.value)}>{[1,2,3,4,5,6].map(g => <option key={g} value={g}>{g}</option>)}</select></div>
-        <div style={styles.formGroup}><label style={styles.label}>班級</label><input style={styles.input} value={formData.classNumber} onChange={e => updateFormData('classNumber', e.target.value)} /></div>
-        <div style={styles.formGroup}><label style={styles.label}>導師</label><input style={styles.input} value={formData.homeTeacher} onChange={e => updateFormData('homeTeacher', e.target.value)} /></div>
-      </div>
-      <h3 style={{marginTop: '20px', marginBottom: '12px', color: '#FF6B95', fontSize: '1rem'}}>法定代理人</h3>
-      <div style={styles.formGrid}>
-        <div style={styles.formGroup}><label style={styles.label}>姓名 *</label><input style={styles.input} value={formData.guardian} onChange={e => updateFormData('guardian', e.target.value)} /></div>
-        <div style={styles.formGroup}><label style={styles.label}>關係</label><select style={styles.select} value={formData.guardianRelation} onChange={e => updateFormData('guardianRelation', e.target.value)}><option value="父">父</option><option value="母">母</option><option value="祖父">祖父</option><option value="祖母">祖母</option><option value="其他">其他</option></select></div>
-        <div style={styles.formGroup}><label style={styles.label}>電話</label><input style={styles.input} value={formData.guardianPhone} onChange={e => updateFormData('guardianPhone', e.target.value)} /></div>
-      </div>
-    </div>
-  );
-
-  // 家庭背景
-  const FamilyBackgroundForm = () => (
-    <div style={styles.formSection}>
-      <div style={styles.sectionBar}></div>
-      <h2 style={styles.sectionTitle}>👨‍👩‍👧 家庭背景</h2>
-      <div style={styles.formGrid}>
-        <div style={styles.formGroup}><label style={styles.label}>照顧者</label><select style={styles.select} value={formData.actualCaregiver} onChange={e => updateFormData('actualCaregiver', e.target.value)}><option value="父">父</option><option value="母">母</option><option value="父母">父母</option><option value="祖父母">祖父母</option><option value="其他">其他</option></select></div>
-        <div style={styles.formGroup}><label style={styles.label}>經濟狀況</label><select style={styles.select} value={formData.economicStatus} onChange={e => updateFormData('economicStatus', e.target.value)}><option value="富裕">富裕</option><option value="小康">小康</option><option value="普通">普通</option><option value="清寒">清寒</option></select></div>
-        <div style={styles.formGroup}><label style={styles.label}>管教態度</label><select style={styles.select} value={formData.parentingStyle} onChange={e => updateFormData('parentingStyle', e.target.value)}><option value="民主式">民主式</option><option value="權威式">權威式</option><option value="放任式">放任式</option><option value="溺愛式">溺愛式</option></select></div>
-        <div style={styles.formGroup}><label style={styles.label}>家庭互動</label><select style={styles.select} value={formData.familyInteraction} onChange={e => updateFormData('familyInteraction', e.target.value)}><option value="良好">良好</option><option value="普通">普通</option><option value="不佳">不佳</option></select></div>
-      </div>
-      <div style={styles.formGroup}><label style={styles.label}>對孩子的期望</label><textarea style={styles.textarea} value={formData.parentExpectation} onChange={e => updateFormData('parentExpectation', e.target.value)} placeholder="例：快樂學習、適性發展..." /></div>
-      
-      <h3 style={{marginTop: '20px', marginBottom: '12px', color: '#FF6B95', fontSize: '1rem'}}>家庭成員</h3>
-      {formData.familyMembers.map((member, index) => (
-        <div key={index} style={styles.dynamicListItem}>
-          {index > 0 && <button style={styles.removeBtn} onClick={() => removeArrayItem('familyMembers', index)}>×</button>}
-          <div style={styles.formGrid}>
-            <div style={styles.formGroup}><label style={styles.label}>稱謂</label><select style={styles.select} value={member.relation} onChange={e => updateNestedData('familyMembers', index, 'relation', e.target.value)}><option value="">請選擇</option><option value="父">父</option><option value="母">母</option><option value="兄">兄</option><option value="姊">姊</option><option value="弟">弟</option><option value="妹">妹</option></select></div>
-            <div style={styles.formGroup}><label style={styles.label}>姓名</label><input style={styles.input} value={member.name} onChange={e => updateNestedData('familyMembers', index, 'name', e.target.value)} /></div>
-            <div style={styles.formGroup}><label style={styles.label}>專長</label><input style={styles.input} value={member.specialty} onChange={e => updateNestedData('familyMembers', index, 'specialty', e.target.value)} /></div>
-            <div style={styles.formGroup}><label style={styles.label}>電話</label><input style={styles.input} value={member.phone} onChange={e => updateNestedData('familyMembers', index, 'phone', e.target.value)} /></div>
-          </div>
-        </div>
-      ))}
-      <button style={styles.addBtn} onClick={() => addArrayItem('familyMembers', { relation: '', name: '', major: '', specialty: '', phone: '', workplace: '' })}>+ 新增成員</button>
-    </div>
-  );
-
-  // 評量紀錄
-  const AssessmentForm = () => {
-    const scienceOptions = ['數學', '資訊科技', '物理', '化學', '生物', '地球科學'];
-    const humanitiesOptions = ['國文', '英文', '歷史', '地理', '美術', '音樂'];
-    const otherOptions = ['體育', '旅遊', '圍棋', '樂高', '其他'];
-
-    const toggleInterest = (field, item) => {
-      const current = formData[field];
-      updateFormData(field, current.includes(item) ? current.filter(i => i !== item) : [...current, item]);
+    const styles = {
+      inputP: 'width:100%;padding:12px;border:2px solid #FFD1DC;border-radius:12px;font-size:1rem;background:#FFF9F9;',
+      inputT: 'width:100%;padding:12px;border:2px solid #A8E6E0;border-radius:12px;font-size:1rem;background:#FFF9F0;',
+      label: 'display:block;margin-bottom:6px;font-weight:600;font-size:0.9rem;color:#4A4A6A;'
     };
 
-    return (
-      <div style={styles.formSection}>
-        <div style={styles.sectionBar}></div>
-        <h2 style={styles.sectionTitle}>📊 評量與表現</h2>
-        
-        <h3 style={{marginBottom: '10px', color: '#FF6B95', fontSize: '1rem'}}>興趣分析（可複選）</h3>
-        <div style={styles.formGroup}>
-          <label style={styles.label}>科學興趣</label>
-          <div style={styles.checkboxGroup}>
-            {scienceOptions.map(item => (
-              <div key={item} style={{...styles.checkboxItem, background: formData.scienceInterests.includes(item) ? '#FF6B95' : '#FFE4EC', color: formData.scienceInterests.includes(item) ? 'white' : '#4A4A6A'}} onClick={() => toggleInterest('scienceInterests', item)}>
-                {formData.scienceInterests.includes(item) ? '✓ ' : ''}{item}
-              </div>
-            ))}
+    function render() {
+      const root = document.getElementById('root');
+      if (!state.userRole) root.innerHTML = renderRoleSelection();
+      else if (state.userRole === 'teacher' && !state.isAuthenticated) root.innerHTML = renderTeacherLogin();
+      else if (state.userRole === 'parent') root.innerHTML = renderParentVersion();
+      else if (state.userRole === 'teacher') root.innerHTML = renderTeacherVersion();
+      bindEvents();
+    }
+
+    function renderRoleSelection() {
+      return `<div style="font-family:'Noto Sans TC',sans-serif;min-height:100vh;padding:20px;background:linear-gradient(135deg,#667eea 0%,#764ba2 50%,#f093fb 100%);display:flex;align-items:center;justify-content:center;">
+        <div style="background:white;border-radius:30px;padding:40px;box-shadow:0 15px 50px rgba(0,0,0,0.1);max-width:500px;width:100%;">
+          <div style="text-align:center;margin-bottom:40px;">
+            <div style="font-size:4rem;margin-bottom:20px;">📚</div>
+            <h1 style="font-size:2rem;font-weight:800;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">IGP 個別輔導計畫系統</h1>
+            <p style="color:#6B6B8D;margin-top:10px;">資賦優異學生個別輔導計畫填寫平台</p>
           </div>
-        </div>
-        <div style={styles.formGroup}>
-          <label style={styles.label}>人文藝術</label>
-          <div style={styles.checkboxGroup}>
-            {humanitiesOptions.map(item => (
-              <div key={item} style={{...styles.checkboxItem, background: formData.humanitiesInterests.includes(item) ? '#FF6B95' : '#FFE4EC', color: formData.humanitiesInterests.includes(item) ? 'white' : '#4A4A6A'}} onClick={() => toggleInterest('humanitiesInterests', item)}>
-                {formData.humanitiesInterests.includes(item) ? '✓ ' : ''}{item}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div style={styles.formGroup}>
-          <label style={styles.label}>其他興趣</label>
-          <div style={styles.checkboxGroup}>
-            {otherOptions.map(item => (
-              <div key={item} style={{...styles.checkboxItem, background: formData.otherInterests.includes(item) ? '#FF6B95' : '#FFE4EC', color: formData.otherInterests.includes(item) ? 'white' : '#4A4A6A'}} onClick={() => toggleInterest('otherInterests', item)}>
-                {formData.otherInterests.includes(item) ? '✓ ' : ''}{item}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <h3 style={{marginTop: '20px', marginBottom: '10px', color: '#FF6B95', fontSize: '1rem'}}>得獎紀錄</h3>
-        {formData.awards.map((award, index) => (
-          <div key={index} style={styles.dynamicListItem}>
-            {index > 0 && <button style={styles.removeBtn} onClick={() => removeArrayItem('awards', index)}>×</button>}
-            <div style={styles.formGrid}>
-              <div style={styles.formGroup}><label style={styles.label}>日期</label><input style={styles.input} type="date" value={award.date} onChange={e => updateNestedData('awards', index, 'date', e.target.value)} /></div>
-              <div style={styles.formGroup}><label style={styles.label}>競賽名稱</label><input style={styles.input} value={award.competition} onChange={e => updateNestedData('awards', index, 'competition', e.target.value)} /></div>
-              <div style={styles.formGroup}><label style={styles.label}>主辦單位</label><input style={styles.input} value={award.organizer} onChange={e => updateNestedData('awards', index, 'organizer', e.target.value)} /></div>
-              <div style={styles.formGroup}><label style={styles.label}>獎項</label><input style={styles.input} value={award.prize} onChange={e => updateNestedData('awards', index, 'prize', e.target.value)} /></div>
-            </div>
-          </div>
-        ))}
-        <button style={styles.addBtn} onClick={() => addArrayItem('awards', { date: '', competition: '', organizer: '', prize: '', type: '個人' })}>+ 新增紀錄</button>
-      </div>
-    );
-  };
-
-  // 特質評估
-  const TraitAssessmentForm = () => {
-    const cognitiveItems = [{ id: 1, label: '觀察' }, { id: 2, label: '記憶' }, { id: 3, label: '理解' }, { id: 4, label: '推理' }, { id: 5, label: '分析' }, { id: 6, label: '創造' }, { id: 7, label: '問題解決' }];
-    const emotionalItems = [{ id: 13, label: '專注' }, { id: 14, label: '動機' }, { id: 15, label: '情緒' }, { id: 16, label: '挫折容忍' }, { id: 17, label: '領導' }, { id: 18, label: '合作' }, { id: 19, label: '自信' }];
-
-    const setRating = (category, itemId, rating) => {
-      updateFormData(category, { ...formData[category], [itemId]: rating });
-    };
-
-    const RatingGroup = ({ items, category, title }) => (
-      <div style={{marginBottom: '15px'}}>
-        <h4 style={{marginBottom: '8px', color: '#FF6B95', fontSize: '0.95rem'}}>{title}</h4>
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '6px'}}>
-          {items.map(item => (
-            <div key={item.id} style={styles.ratingGroup}>
-              <span style={{fontWeight: '600', fontSize: '0.8rem'}}>{item.label}</span>
-              <div style={styles.ratingScale}>
-                {[1, 2, 3, 4, 5].map(rating => (
-                  <button key={rating} style={{...styles.ratingBtn, background: formData[category][item.id] === rating ? '#FF6B95' : 'white', color: formData[category][item.id] === rating ? 'white' : '#4A4A6A'}} onClick={() => setRating(category, item.id, rating)}>{rating}</button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-
-    return (
-      <div style={styles.formSection}>
-        <div style={styles.sectionBar}></div>
-        <h2 style={styles.sectionTitle}>⭐ 特質評估</h2>
-        <div style={styles.infoCard}><p>請為各項特質評分（1-5分，5分最高）</p></div>
-        <RatingGroup items={cognitiveItems} category="cognitiveTraits" title="認知特質" />
-        <RatingGroup items={emotionalItems} category="emotionalTraits" title="情意特質" />
-      </div>
-    );
-  };
-
-  // 確認繳交
-  const SubmitForm = () => (
-    <div style={styles.formSection}>
-      <div style={styles.sectionBar}></div>
-      <h2 style={styles.sectionTitle}>✅ 確認繳交</h2>
-
-      {isSubmitted ? (
-        <div style={styles.successCard}>
-          <div style={{fontSize: '4rem', marginBottom: '20px'}}>🎉</div>
-          <h3 style={{color: '#4CAF50', marginBottom: '15px', fontSize: '1.5rem'}}>資料已成功繳交！</h3>
-          <p style={{color: '#666', marginBottom: '10px'}}>老師將會在系統中收到您填寫的資料</p>
-          <p style={{color: '#999', fontSize: '0.9rem'}}>繳交時間：{new Date().toLocaleString('zh-TW')}</p>
-          <button style={{...styles.btnSecondary, marginTop: '25px'}} onClick={onLogout}>← 返回首頁</button>
-        </div>
-      ) : (
-        <>
-          <div style={styles.infoCard}><p>🎉 請確認以下資料無誤後點擊繳交按鈕</p></div>
-
-          <div style={{background: '#FFE4EC', borderRadius: '15px', padding: '20px', marginTop: '15px'}}>
-            <h3 style={{color: '#FF6B95', marginBottom: '12px'}}>📋 資料摘要</h3>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px'}}>
-              <div style={{background: 'white', padding: '10px', borderRadius: '10px', fontSize: '0.85rem'}}><strong>學生：</strong>{formData.studentName || '未填'}</div>
-              <div style={{background: 'white', padding: '10px', borderRadius: '10px', fontSize: '0.85rem'}}><strong>學校：</strong>{formData.school} {formData.grade}年{formData.classNumber}班</div>
-              <div style={{background: 'white', padding: '10px', borderRadius: '10px', fontSize: '0.85rem'}}><strong>學年：</strong>{formData.schoolYear} {formData.semester}</div>
-              <div style={{background: 'white', padding: '10px', borderRadius: '10px', fontSize: '0.85rem'}}><strong>代理人：</strong>{formData.guardian || '未填'}</div>
-              <div style={{background: 'white', padding: '10px', borderRadius: '10px', fontSize: '0.85rem'}}><strong>興趣：</strong>{[...formData.scienceInterests, ...formData.humanitiesInterests].slice(0, 3).join('、') || '未填'}</div>
-              <div style={{background: 'white', padding: '10px', borderRadius: '10px', fontSize: '0.85rem'}}><strong>得獎：</strong>{formData.awards.filter(a => a.competition).length} 筆</div>
-            </div>
-          </div>
-
-          <div style={{textAlign: 'center', marginTop: '30px'}}>
-            <button style={{...styles.btnSubmit, opacity: isSubmitting ? 0.7 : 1}} onClick={submitData} disabled={isSubmitting}>
-              {isSubmitting ? '⏳ 繳交中...' : '📤 確認繳交給老師'}
+          <div style="display:flex;flex-direction:column;gap:20px;">
+            <button onclick="setState({userRole:'parent',step:0})" style="padding:25px;border:none;border-radius:20px;background:linear-gradient(135deg,#FF9A8B 0%,#FF6B95 100%);color:white;font-size:1.2rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:15px;">
+              <span style="font-size:2rem;">👨‍👩‍👧</span><div style="text-align:left;"><div>我是家長</div><div style="font-size:0.85rem;opacity:0.9;">填寫學生資料</div></div>
             </button>
-            <p style={{marginTop: '12px', color: '#FF6B95', fontSize: '0.85rem'}}>
-              繳交後資料將自動送達教師系統 ✨
-            </p>
+            <button onclick="setState({userRole:'teacher',step:0})" style="padding:25px;border:none;border-radius:20px;background:linear-gradient(135deg,#7ECEC6 0%,#5EBEB6 100%);color:white;font-size:1.2rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:15px;">
+              <span style="font-size:2rem;">👩‍🏫</span><div style="text-align:left;"><div>我是教師</div><div style="font-size:0.85rem;opacity:0.9;">完成 IGP 並匯出</div></div>
+            </button>
           </div>
-        </>
-      )}
-    </div>
-  );
-
-  const renderStep = () => {
-    switch(currentStep) {
-      case 0: return <BasicInfoForm />;
-      case 1: return <FamilyBackgroundForm />;
-      case 2: return <AssessmentForm />;
-      case 3: return <TraitAssessmentForm />;
-      case 4: return <SubmitForm />;
-      default: return null;
+        </div>
+      </div>`;
     }
-  };
 
-  return (
-    <div style={styles.container}>
-      <header style={styles.header}>
-        <div>
-          <h1 style={styles.headerTitle}>IGP 資料填寫系統</h1>
-          <div style={styles.headerBadge}>👨‍👩‍👧 家長版</div>
+    function renderTeacherLogin() {
+      return `<div style="font-family:'Noto Sans TC',sans-serif;min-height:100vh;padding:20px;background:linear-gradient(135deg,#A8E6E0 0%,#FFF9F0 50%,#FFF8DC 100%);display:flex;align-items:center;justify-content:center;">
+        <div style="background:white;border-radius:30px;padding:40px;box-shadow:0 15px 50px rgba(0,0,0,0.1);max-width:400px;width:100%;">
+          <div style="text-align:center;margin-bottom:30px;"><div style="font-size:4rem;">🔐</div><h1 style="font-size:1.8rem;font-weight:800;color:#7ECEC6;">教師登入</h1></div>
+          <input type="password" id="passwordInput" placeholder="請輸入教師密碼" style="width:100%;padding:15px;border:2px solid #A8E6E0;border-radius:15px;font-size:1rem;margin-bottom:15px;" />
+          <p id="passwordError" style="color:#FF6B6B;text-align:center;margin-bottom:15px;display:none;">密碼錯誤</p>
+          <button onclick="handleLogin()" style="width:100%;padding:15px;border:none;border-radius:15px;background:linear-gradient(135deg,#7ECEC6 0%,#5EBEB6 100%);color:white;font-size:1.1rem;font-weight:700;cursor:pointer;margin-bottom:10px;">登入</button>
+          <button onclick="setState({userRole:null})" style="width:100%;padding:15px;border:2px solid #7ECEC6;border-radius:15px;background:white;color:#7ECEC6;font-size:1rem;font-weight:600;cursor:pointer;">← 返回</button>
         </div>
-        <button style={styles.logoutBtn} onClick={onLogout}>← 返回首頁</button>
-      </header>
+      </div>`;
+    }
 
-      <div style={styles.progressContainer}>
-        <div style={styles.progressSteps}>
-          {steps.map((step, idx) => (
-            <div key={step.id} style={styles.step} onClick={() => !isSubmitted && setCurrentStep(idx)}>
-              <div style={{...styles.stepCircle, background: currentStep === idx ? '#FF6B95' : currentStep > idx ? '#4CAF50' : '#FFD1DC'}}>
-                {currentStep > idx ? '✓' : step.icon}
-              </div>
-              <span style={{...styles.stepLabel, color: currentStep === idx ? '#FF6B95' : '#6B6B8D', fontWeight: currentStep === idx ? '700' : '500'}}>{step.label}</span>
+    function handleLogin() {
+      const pwd = document.getElementById('passwordInput').value;
+      if (pwd === state.password) { setState({ isAuthenticated: true }); loadSubmissions(); }
+      else document.getElementById('passwordError').style.display = 'block';
+    }
+
+    // ===== 家長版 =====
+    function renderParentVersion() {
+      const steps = ['基本資料', '家庭背景', '興趣評量', '特質評估', '確認繳交'];
+      return `<div style="font-family:'Noto Sans TC',sans-serif;background:linear-gradient(135deg,#FFE4E1 0%,#FFF9F0 50%,#E8F5E9 100%);min-height:100vh;padding:20px;">
+        <header style="background:linear-gradient(135deg,#FF9A8B 0%,#FF6B95 100%);border-radius:20px;padding:20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+          <h1 style="color:white;font-size:1.4rem;margin:0;">IGP 家長版 👨‍👩‍👧</h1>
+          <button onclick="setState({userRole:null,step:0,submitted:false})" style="padding:8px 16px;border:2px solid white;border-radius:10px;background:transparent;color:white;font-weight:600;cursor:pointer;">← 返回</button>
+        </header>
+        <div style="background:white;border-radius:15px;padding:12px;margin-bottom:20px;display:flex;justify-content:space-between;gap:5px;">
+          ${steps.map((s,i)=>`<div onclick="setState({step:${i}})" style="display:flex;flex-direction:column;align-items:center;cursor:pointer;flex:1;">
+            <div style="width:35px;height:35px;border-radius:50%;background:${state.step===i?'#FF6B95':state.step>i?'#4CAF50':'#FFD1DC'};color:white;display:flex;align-items:center;justify-content:center;font-weight:700;">${state.step>i?'✓':i+1}</div>
+            <span style="font-size:0.65rem;margin-top:4px;color:${state.step===i?'#FF6B95':'#666'};">${s}</span>
+          </div>`).join('')}
+        </div>
+        <div style="background:white;border-radius:20px;padding:25px;margin-bottom:20px;">${renderParentStep()}</div>
+        ${state.step<4&&!state.submitted?`<div style="display:flex;gap:10px;justify-content:center;">
+          ${state.step>0?`<button onclick="setState({step:state.step-1})" style="padding:12px 30px;border:2px solid #FF6B95;border-radius:15px;background:white;color:#FF6B95;font-weight:700;cursor:pointer;">← 上一步</button>`:''}
+          <button onclick="setState({step:state.step+1})" style="padding:12px 30px;border:none;border-radius:15px;background:linear-gradient(135deg,#FF6B95 0%,#FF8E53 100%);color:white;font-weight:700;cursor:pointer;">下一步 →</button>
+        </div>`:''}
+        ${state.toast?`<div style="position:fixed;bottom:20px;right:20px;background:${state.toast.includes('❌')?'#FF6B6B':'#4CAF50'};color:white;padding:15px 25px;border-radius:10px;font-weight:600;z-index:1000;">${state.toast}</div>`:''}
+      </div>`;
+    }
+
+    function renderParentStep() {
+      const f = state.form;
+      switch(state.step) {
+        case 0: return `<h3 style="color:#FF6B95;margin-bottom:15px;">👤 基本資料</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+            <div><label style="${styles.label}">學生姓名 *</label><input type="text" id="studentName" value="${f.studentName}" style="${styles.inputP}" /></div>
+            <div><label style="${styles.label}">出生日期</label><input type="date" id="birthDate" value="${f.birthDate}" style="${styles.inputP}" /></div>
+            <div><label style="${styles.label}">性別</label><select id="gender" style="${styles.inputP}"><option ${f.gender==='男'?'selected':''}>男</option><option ${f.gender==='女'?'selected':''}>女</option></select></div>
+            <div><label style="${styles.label}">學年度</label><input type="text" id="schoolYear" value="${f.schoolYear}" style="${styles.inputP}" /></div>
+            <div><label style="${styles.label}">學校 *</label><input type="text" id="school" value="${f.school}" style="${styles.inputP}" placeholder="例：同德國小" /></div>
+            <div><label style="${styles.label}">年級</label><select id="grade" style="${styles.inputP}">${[1,2,3,4,5,6].map(g=>`<option ${f.grade==g?'selected':''}>${g}</option>`).join('')}</select></div>
+            <div><label style="${styles.label}">班級</label><input type="text" id="classNumber" value="${f.classNumber}" style="${styles.inputP}" /></div>
+            <div><label style="${styles.label}">導師</label><input type="text" id="homeTeacher" value="${f.homeTeacher}" style="${styles.inputP}" /></div>
+            <div><label style="${styles.label}">E-mail</label><input type="email" id="email" value="${f.email||''}" style="${styles.inputP}" /></div>
+            <div><label style="${styles.label}">住址</label><input type="text" id="address" value="${f.address||''}" style="${styles.inputP}" /></div>
+            <div><label style="${styles.label}">法定代理人 *</label><input type="text" id="guardian" value="${f.guardian}" style="${styles.inputP}" /></div>
+            <div><label style="${styles.label}">代理人關係</label><select id="guardianRelation" style="${styles.inputP}">${['父','母','祖父','祖母','其他'].map(r=>`<option ${f.guardianRelation===r?'selected':''}>${r}</option>`).join('')}</select></div>
+            <div><label style="${styles.label}">代理人電話</label><input type="tel" id="guardianPhone" value="${f.guardianPhone}" style="${styles.inputP}" /></div>
+          </div>`;
+        case 1: return `<h3 style="color:#FF6B95;margin-bottom:15px;">👨‍👩‍👧 家庭狀況</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+            <div><label style="${styles.label}">實際照顧者</label><select id="actualCaregiver" style="${styles.inputP}">${['父','母','父母','祖父母','其他'].map(c=>`<option ${f.actualCaregiver===c?'selected':''}>${c}</option>`).join('')}</select></div>
+            <div><label style="${styles.label}">家庭經濟狀況</label><select id="economicStatus" style="${styles.inputP}">${['富裕','小康','普通','清寒'].map(e=>`<option ${f.economicStatus===e?'selected':''}>${e}</option>`).join('')}</select></div>
+            <div><label style="${styles.label}">管教態度</label><select id="parentingStyle" style="${styles.inputP}">${['民主式','權威式','放任式','溺愛式'].map(p=>`<option ${f.parentingStyle===p?'selected':''}>${p}</option>`).join('')}</select></div>
+            <div><label style="${styles.label}">與家人互動</label><select id="familyInteraction" style="${styles.inputP}">${['良好','普通','不佳'].map(i=>`<option ${f.familyInteraction===i?'selected':''}>${i}</option>`).join('')}</select></div>
+          </div>
+          <div style="margin-top:15px;"><label style="${styles.label}">對孩子的期望</label><textarea id="parentExpectation" style="${styles.inputP}min-height:80px;">${f.parentExpectation}</textarea></div>`;
+        case 2:
+          const sci=['數學','資訊科技','生活科技','物理','化學','生物','地球科學'];
+          const hum=['國文','英文','歷史','地理','美術','音樂','設計'];
+          const oth=['體育','民俗體育','旅遊','圍棋','樂高','其他'];
+          return `<h3 style="color:#FF6B95;margin-bottom:15px;">📊 興趣分析</h3>
+            <div style="margin-bottom:15px;"><label style="${styles.label}">科學興趣</label><div style="display:flex;flex-wrap:wrap;gap:6px;">${sci.map(item=>`<div onclick="toggleInterest('scienceInterests','${item}')" style="padding:8px 15px;border-radius:15px;cursor:pointer;background:${f.scienceInterests.includes(item)?'#FF6B95':'#FFE4EC'};color:${f.scienceInterests.includes(item)?'white':'#4A4A6A'};">${f.scienceInterests.includes(item)?'✓ ':''}${item}</div>`).join('')}</div></div>
+            <div style="margin-bottom:15px;"><label style="${styles.label}">人文與藝術興趣</label><div style="display:flex;flex-wrap:wrap;gap:6px;">${hum.map(item=>`<div onclick="toggleInterest('humanitiesInterests','${item}')" style="padding:8px 15px;border-radius:15px;cursor:pointer;background:${f.humanitiesInterests.includes(item)?'#FF6B95':'#FFE4EC'};color:${f.humanitiesInterests.includes(item)?'white':'#4A4A6A'};">${f.humanitiesInterests.includes(item)?'✓ ':''}${item}</div>`).join('')}</div></div>
+            <div><label style="${styles.label}">其他</label><div style="display:flex;flex-wrap:wrap;gap:6px;">${oth.map(item=>`<div onclick="toggleInterest('otherInterests','${item}')" style="padding:8px 15px;border-radius:15px;cursor:pointer;background:${f.otherInterests.includes(item)?'#FF6B95':'#FFE4EC'};color:${f.otherInterests.includes(item)?'white':'#4A4A6A'};">${f.otherInterests.includes(item)?'✓ ':''}${item}</div>`).join('')}</div></div>`;
+        case 3:
+          const cog=['觀察能力','記憶能力','理解能力','推理能力','分析能力','應用能力','評鑑能力','創造能力','批判能力','問題解決','後設能力'];
+          const emo=['專注能力','成就動機','要求完美','溝通協調','情緒控制','挫折容忍','正向思考','領導能力','合作能力','自信心','同理心','復原力'];
+          return `<h3 style="color:#FF6B95;margin-bottom:15px;">⭐ 特質評估（1-5分）</h3>
+            <div style="margin-bottom:15px;"><label style="${styles.label}">認知特質</label><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;">${cog.map(item=>`<div style="background:#FFF9F9;padding:6px;border-radius:6px;"><div style="font-size:0.75rem;margin-bottom:4px;">${item}</div><div style="display:flex;gap:2px;">${[1,2,3,4,5].map(n=>`<button onclick="setRating('cognitiveTraits','${item}',${n})" style="width:24px;height:24px;border-radius:4px;border:1px solid #FFD1DC;background:${f.cognitiveTraits[item]===n?'#FF6B95':'white'};color:${f.cognitiveTraits[item]===n?'white':'#4A4A6A'};cursor:pointer;font-size:0.7rem;">${n}</button>`).join('')}</div></div>`).join('')}</div></div>
+            <div><label style="${styles.label}">情意特質</label><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;">${emo.map(item=>`<div style="background:#FFF9F9;padding:6px;border-radius:6px;"><div style="font-size:0.75rem;margin-bottom:4px;">${item}</div><div style="display:flex;gap:2px;">${[1,2,3,4,5].map(n=>`<button onclick="setRating('emotionalTraits','${item}',${n})" style="width:24px;height:24px;border-radius:4px;border:1px solid #FFD1DC;background:${f.emotionalTraits[item]===n?'#FF6B95':'white'};color:${f.emotionalTraits[item]===n?'white':'#4A4A6A'};cursor:pointer;font-size:0.7rem;">${n}</button>`).join('')}</div></div>`).join('')}</div></div>`;
+        case 4:
+          if(state.submitted) return `<div style="text-align:center;background:#E8F5E9;border-radius:20px;padding:40px;"><div style="font-size:4rem;">🎉</div><h3 style="color:#4CAF50;margin:15px 0;">資料已成功繳交！</h3><button onclick="setState({userRole:null,step:0,submitted:false})" style="margin-top:20px;padding:12px 30px;border:2px solid #4CAF50;border-radius:15px;background:white;color:#4CAF50;font-weight:700;cursor:pointer;">← 返回首頁</button></div>`;
+          return `<div style="text-align:center;"><h3 style="color:#FF6B95;margin-bottom:20px;">✅ 確認繳交</h3>
+            <div style="background:#FFE4EC;border-radius:15px;padding:20px;margin-bottom:20px;text-align:left;">
+              <p><strong>學生：</strong>${f.studentName||'未填'}</p>
+              <p><strong>學校：</strong>${f.school} ${f.grade}年${f.classNumber}班</p>
+              <p><strong>代理人：</strong>${f.guardian||'未填'}</p>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {renderStep()}
-
-      {!isSubmitted && (
-        <div style={styles.btnGroup}>
-          {currentStep > 0 && <button style={styles.btnSecondary} onClick={() => setCurrentStep(prev => prev - 1)}>← 上一步</button>}
-          {currentStep < steps.length - 1 && <button style={styles.btnPrimary} onClick={() => setCurrentStep(prev => prev + 1)}>下一步 →</button>}
-        </div>
-      )}
-
-      {toast.show && <div style={{...styles.toast, background: toast.type === 'error' ? '#FF6B6B' : '#4CAF50', color: 'white'}}>{toast.message}</div>}
-    </div>
-  );
-}
-
-// ==================== 教師版組件 ====================
-function TeacherVersion({ onLogout, password, savePassword }) {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [toast, setToast] = useState({ show: false, message: '' });
-  const [submissions, setSubmissions] = useState([]);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [oldPwd, setOldPwd] = useState('');
-  const [newPwd, setNewPwd] = useState('');
-  const [confirmPwd, setConfirmPwd] = useState('');
-  const [pwdError, setPwdError] = useState('');
-  const [pwdSuccess, setPwdSuccess] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    studentName: '', birthDate: '', gender: '男', identificationNumber: '', studentEmail: '', address: '', phone: '',
-    guardian: '', guardianPhone: '', guardianRelation: '父',
-    schoolYear: '114', semester: '上學期', school: '', grade: '3', classNumber: '', homeTeacher: '', caseTeacher: '',
-    actualCaregiver: '父', economicStatus: '小康', parentingStyle: '民主式', familyInteraction: '良好', parentExpectation: '',
-    familyMembers: [], scienceInterests: [], humanitiesInterests: [], otherInterests: [],
-    awards: [], cognitiveTraits: {}, emotionalTraits: {}, academicAbilities: {},
-    strengths: [], weaknesses: [], analysisDescription: '', analysisDate: '',
-    courses: [{ domain: '創造能力', courseName: '', teacher: '', goals: '', cognitiveAdjustments: [], emotionalFocus: [] }],
-    timetable: {},
-    meetings: [{ date: '', time: '', location: '', attendees: '', content: '', recorder: '' }]
-  });
-
-  const steps = [
-    { id: 0, label: '學生列表', icon: '📋' },
-    { id: 1, label: '基本資料', icon: '👤' },
-    { id: 2, label: '家庭背景', icon: '👨‍👩‍👧' },
-    { id: 3, label: '評量紀錄', icon: '📊' },
-    { id: 4, label: '優弱勢', icon: '⚖️' },
-    { id: 5, label: '課程計畫', icon: '📚' },
-    { id: 6, label: '課表', icon: '📅' },
-    { id: 7, label: '會議', icon: '📝' },
-    { id: 8, label: '匯出', icon: '📄' }
-  ];
-
-  useEffect(() => {
-    loadSubmissions();
-  }, []);
-
-  const loadSubmissions = async () => {
-    setIsLoading(true);
-    try {
-      const result = await window.storage.list('igp_submission:', true);
-      if (result && result.keys) {
-        const subs = [];
-        for (const key of result.keys) {
-          try {
-            const data = await window.storage.get(key, true);
-            if (data && data.value) {
-              subs.push({ key, ...JSON.parse(data.value) });
-            }
-          } catch (e) {
-            console.error('讀取資料失敗:', key);
-          }
-        }
-        setSubmissions(subs.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt)));
+            <button onclick="submitToFirebase()" ${state.submitting?'disabled':''} style="padding:18px 50px;border:none;border-radius:20px;background:${state.submitting?'#ccc':'linear-gradient(135deg,#4CAF50 0%,#45a049 100%)'};color:white;font-size:1.2rem;font-weight:700;cursor:pointer;">${state.submitting?'⏳ 繳交中...':'📤 確認繳交'}</button>
+          </div>`;
       }
-    } catch (error) {
-      console.error('載入繳交資料失敗:', error);
-    } finally {
-      setIsLoading(false);
     }
-  };
 
-  const selectStudent = (submission) => {
-    setFormData({ ...formData, ...submission });
-    setSelectedStudent(submission);
-    setCurrentStep(1);
-    showToast(`已載入 ${submission.studentName} 的資料`);
-  };
+    function toggleInterest(field, item) {
+      const curr = state.form[field] || [];
+      state.form[field] = curr.includes(item) ? curr.filter(i=>i!==item) : [...curr,item];
+      render();
+    }
 
-  const showToast = (message) => {
-    setToast({ show: true, message });
-    setTimeout(() => setToast({ show: false, message: '' }), 3000);
-  };
+    function setRating(cat, item, val) {
+      state.form[cat] = { ...state.form[cat], [item]: val };
+      render();
+    }
 
-  const updateFormData = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
+    async function submitToFirebase() {
+      saveFormData();
+      const f = state.form;
+      if(!f.studentName||!f.school||!f.guardian) { showToast('❌ 請填寫必要欄位'); return; }
+      state.submitting = true; render();
+      try {
+        const key = `${f.school}_${f.grade}_${f.classNumber}_${f.studentName}`.replace(/[.#$\/\[\]]/g,'_');
+        await db.ref('submissions/'+key).set({...f, submittedAt: new Date().toISOString(), status:'pending'});
+        state.submitted = true;
+        showToast('✅ 資料已成功繳交！');
+      } catch(e) { showToast('❌ 繳交失敗'); }
+      state.submitting = false; render();
+    }
 
-  const updateNestedData = (field, index, subfield, value) => {
-    setFormData(prev => {
-      const newArray = [...prev[field]];
-      newArray[index] = { ...newArray[index], [subfield]: value };
-      return { ...prev, [field]: newArray };
-    });
-  };
+    // ===== 教師版 =====
+    function renderTeacherVersion() {
+      const steps = ['學生列表','基本資料','優弱勢','課程計畫','課表','會議','匯出'];
+      return `<div style="font-family:'Noto Sans TC',sans-serif;background:linear-gradient(135deg,#A8E6E0 0%,#FFF9F0 50%,#FFF8DC 100%);min-height:100vh;padding:20px;">
+        <header style="background:#9B8AC4;border-radius:20px;padding:20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+          <h1 style="color:white;font-size:1.4rem;margin:0;">IGP 教師版 👩‍🏫</h1>
+          <button onclick="setState({userRole:null,isAuthenticated:false,step:0,selectedStudent:null})" style="padding:8px 16px;border:2px solid white;border-radius:10px;background:transparent;color:white;font-weight:600;cursor:pointer;">← 登出</button>
+        </header>
+        <div style="background:white;border-radius:15px;padding:10px;margin-bottom:20px;overflow-x:auto;">
+          <div style="display:flex;justify-content:space-between;min-width:500px;gap:3px;">
+            ${steps.map((s,i)=>`<div onclick="${i===0||state.selectedStudent?`setState({step:${i}})`:''}" style="display:flex;flex-direction:column;align-items:center;cursor:${i===0||state.selectedStudent?'pointer':'not-allowed'};flex:1;opacity:${i>0&&!state.selectedStudent?0.5:1};"><div style="width:30px;height:30px;border-radius:50%;background:${state.step===i?'#9B8AC4':state.step>i?'#7ECEC6':'#A8E6E0'};color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.7rem;">${state.step>i?'✓':i+1}</div><span style="font-size:0.55rem;margin-top:3px;color:${state.step===i?'#9B8AC4':'#666'};">${s}</span></div>`).join('')}
+          </div>
+        </div>
+        <div style="background:white;border-radius:20px;padding:25px;margin-bottom:20px;">${renderTeacherStep()}</div>
+        ${state.step>0&&state.selectedStudent?`<div style="display:flex;gap:10px;justify-content:center;">
+          <button onclick="setState({step:state.step-1})" style="padding:12px 30px;border:2px solid #9B8AC4;border-radius:15px;background:white;color:#9B8AC4;font-weight:700;cursor:pointer;">← 上一步</button>
+          ${state.step<6?`<button onclick="setState({step:state.step+1})" style="padding:12px 30px;border:none;border-radius:15px;background:linear-gradient(135deg,#9B8AC4 0%,#7B6BA4 100%);color:white;font-weight:700;cursor:pointer;">下一步 →</button>`:''}
+        </div>`:''}
+        ${state.toast?`<div style="position:fixed;bottom:20px;right:20px;background:${state.toast.includes('❌')?'#FF6B6B':'#7ECEC6'};color:white;padding:15px 25px;border-radius:10px;font-weight:600;z-index:1000;">${state.toast}</div>`:''}
+      </div>`;
+    }
 
-  const addArrayItem = (field, template) => {
-    setFormData(prev => ({ ...prev, [field]: [...prev[field], template] }));
-  };
+    function renderTeacherStep() {
+      const f = state.form;
+      switch(state.step) {
+        case 0: return renderStudentList();
+        case 1: return `<h3 style="color:#9B8AC4;margin-bottom:15px;">👤 基本資料</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+            <div><label style="${styles.label}">學生姓名</label><input type="text" value="${f.studentName}" style="${styles.inputT}" readonly /></div>
+            <div><label style="${styles.label}">鑑定文號</label><input type="text" id="identificationNumber" value="${f.identificationNumber||''}" style="${styles.inputT}" placeholder="113年4月22日府教特字第..." /></div>
+            <div><label style="${styles.label}">學校/班級</label><input type="text" value="${f.school} ${f.grade}年${f.classNumber}班" style="${styles.inputT}" readonly /></div>
+            <div><label style="${styles.label}">原班導師</label><input type="text" id="homeTeacher" value="${f.homeTeacher||''}" style="${styles.inputT}" /></div>
+            <div><label style="${styles.label}">個管教師</label><input type="text" id="caseTeacher" value="${f.caseTeacher||''}" style="${styles.inputT}" /></div>
+            <div><label style="${styles.label}">教育階段</label><select id="educationStage" style="${styles.inputT}">${['國小','國中'].map(s=>`<option ${f.educationStage===s?'selected':''}>${s}</option>`).join('')}</select></div>
+            <div><label style="${styles.label}">資優類別</label><select id="giftedType" style="${styles.inputT}">${['創造能力','一般智能','學術性向','藝術才能','領導才能'].map(t=>`<option ${f.giftedType===t?'selected':''}>${t}</option>`).join('')}</select></div>
+            <div><label style="${styles.label}">安置方式</label><select id="placementType" style="${styles.inputT}">${['分散式資源班','集中式特教班','巡迴輔導','資優教育方案'].map(p=>`<option ${f.placementType===p?'selected':''}>${p}</option>`).join('')}</select></div>
+          </div>`;
+        case 2:
+          const traits=['①觀察能力','②記憶能力','③理解能力','④推理能力','⑤分析能力','⑥應用能力','⑦評鑑能力','⑧創造能力','⑨批判能力','⑩問題解決','⑪後設能力','⑬專注能力','⑭成就動機','⑮要求完美','⑯溝通協調','⑰情緒控制','⑱挫折容忍','⑲正向思考','⑳領導能力','㉑合作能力','㉒自信心','㉓同理心','㉔復原力','㉖數學','㉗物理','㉘生物','㉙化學','㉚地科','㉛國文','㉜英文','㉝歷史','㉞地理','㉟公民','㊱資訊','㊲生科'];
+          return `<h3 style="color:#9B8AC4;margin-bottom:15px;">⚖️ 優弱勢能力評析</h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:15px;">
+              <div><label style="${styles.label}">填寫日期</label><input type="text" id="analysisDate" value="${f.analysisDate||''}" style="${styles.inputT}" placeholder="114/8/30" /></div>
+              <div><label style="${styles.label}">填寫者</label><input type="text" id="analysisWriter" value="${f.analysisWriter||''}" style="${styles.inputT}" placeholder="劉力瑄(教師)" /></div>
+            </div>
+            <p style="margin-bottom:10px;font-size:0.85rem;"><span style="color:#7ECEC6;">■綠=優勢</span> | <span style="color:#E8A5A5;">■粉=弱勢</span></p>
+            <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:15px;">
+              ${traits.map(t=>`<div style="display:flex;gap:1px;"><div onclick="toggleTrait('strengths','${t}')" style="padding:3px 5px;border-radius:6px;cursor:pointer;font-size:0.6rem;background:${(f.strengths||[]).includes(t)?'#7ECEC6':'#F5E6B8'};color:${(f.strengths||[]).includes(t)?'white':'#4A4A6A'};">${t}↑</div><div onclick="toggleTrait('weaknesses','${t}')" style="padding:3px 5px;border-radius:6px;cursor:pointer;font-size:0.6rem;background:${(f.weaknesses||[]).includes(t)?'#F5C4C4':'#F5E6B8'};color:${(f.weaknesses||[]).includes(t)?'white':'#4A4A6A'};">↓</div></div>`).join('')}
+            </div>
+            <div><label style="${styles.label}">優弱勢能力綜合評析（質性描述）</label><textarea id="analysisDescription" style="${styles.inputT}min-height:150px;">${f.analysisDescription||''}</textarea></div>`;
+        case 3: return renderCurriculum();
+        case 4: return renderTimetable();
+        case 5: return renderMeetings();
+        case 6: return renderExport();
+      }
+    }
 
-  const removeArrayItem = (field, index) => {
-    setFormData(prev => ({ ...prev, [field]: prev[field].filter((_, i) => i !== index) }));
-  };
+    function toggleTrait(field, trait) {
+      const curr = state.form[field] || [];
+      state.form[field] = curr.includes(trait) ? curr.filter(t=>t!==trait) : [...curr,trait];
+      render();
+    }
 
-  const exportWord = () => {
-    const igpData = { ...formData, exportDate: new Date().toLocaleDateString('zh-TW') };
-    const dataStr = JSON.stringify(igpData, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${formData.studentName}_IGP_${formData.schoolYear}學年度.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('✅ IGP 文件已匯出！');
-  };
+    function loadSubmissions() {
+      db.ref('submissions').on('value', snapshot => {
+        const data = snapshot.val();
+        state.submissions = data ? Object.entries(data).map(([key,value])=>({key,...value})).sort((a,b)=>new Date(b.submittedAt)-new Date(a.submittedAt)) : [];
+        state.loading = false;
+        render();
+      });
+    }
 
-  const handleChangePassword = async () => {
-    setPwdError('');
-    setPwdSuccess(false);
-    if (oldPwd !== password) { setPwdError('舊密碼不正確'); return; }
-    if (newPwd.length < 4) { setPwdError('新密碼至少4字元'); return; }
-    if (newPwd !== confirmPwd) { setPwdError('密碼不符'); return; }
-    await savePassword(newPwd);
-    setPwdSuccess(true);
-    setTimeout(() => { setShowPasswordModal(false); setPwdSuccess(false); }, 2000);
-  };
+    function renderStudentList() {
+      if(state.loading) return `<div style="text-align:center;padding:40px;"><div style="font-size:2rem;">⏳</div><p>載入中...</p></div>`;
+      if(state.submissions.length===0) return `<div style="text-align:center;padding:40px;"><div style="font-size:3rem;">📭</div><p>目前沒有家長繳交的資料</p></div>`;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+        <h3 style="color:#9B8AC4;margin:0;">📋 已繳交學生（${state.submissions.length}筆）</h3>
+        <button onclick="window.location.reload()" style="padding:8px 15px;border:none;border-radius:10px;background:#7ECEC6;color:white;cursor:pointer;">🔄 重新整理</button>
+      </div>
+      ${state.submissions.map((sub,i)=>`<div onclick="selectStudent(${i})" style="background:white;border-radius:15px;padding:15px;margin-bottom:10px;border:2px solid #A8E6E0;cursor:pointer;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div><div style="font-weight:700;">${sub.studentName}</div><div style="color:#666;font-size:0.85rem;">${sub.school} ${sub.grade}年${sub.classNumber}班</div></div>
+          <div style="text-align:right;"><div style="padding:4px 10px;border-radius:10px;font-size:0.75rem;background:#FFF3E0;color:#FF9800;">待處理</div></div>
+        </div>
+      </div>`).join('')}`;
+    }
 
-  const styles = {
-    container: { fontFamily: "'Noto Sans TC', 'Nunito', sans-serif", background: 'linear-gradient(135deg, #A8E6E0 0%, #FFF9F0 50%, #FFF8DC 100%)', minHeight: '100vh', padding: '20px', color: '#4A4A6A' },
-    header: { background: '#9B8AC4', borderRadius: '20px', padding: '20px 25px', marginBottom: '20px', boxShadow: '0 10px 40px rgba(155, 138, 196, 0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' },
-    headerTitle: { fontSize: '1.4rem', fontWeight: '800', color: 'white', margin: 0 },
-    headerBadge: { display: 'inline-block', background: 'rgba(255,255,255,0.2)', padding: '5px 12px', borderRadius: '12px', color: 'white', fontWeight: '600', fontSize: '0.8rem' },
-    headerBtns: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
-    headerBtn: { padding: '8px 15px', border: '2px solid white', borderRadius: '12px', background: 'transparent', color: 'white', fontWeight: '600', cursor: 'pointer', fontSize: '0.8rem' },
-    progressContainer: { background: 'white', borderRadius: '15px', padding: '10px 15px', marginBottom: '20px', boxShadow: '0 5px 20px rgba(0,0,0,0.08)', overflowX: 'auto' },
-    progressSteps: { display: 'flex', justifyContent: 'space-between', minWidth: '700px', gap: '3px' },
-    step: { display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', flex: 1 },
-    stepCircle: { width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', color: 'white', fontSize: '12px' },
-    stepLabel: { marginTop: '4px', fontSize: '0.6rem', fontWeight: '500', textAlign: 'center' },
-    formSection: { background: 'white', borderRadius: '20px', padding: '20px', marginBottom: '20px', boxShadow: '0 10px 40px rgba(0,0,0,0.08)', position: 'relative', overflow: 'hidden' },
-    sectionBar: { position: 'absolute', top: 0, left: 0, width: '100%', height: '5px', background: 'linear-gradient(90deg, #7ECEC6 0%, #9B8AC4 50%, #F5C4C4 100%)' },
-    sectionTitle: { fontSize: '1.2rem', fontWeight: '800', color: '#9B8AC4', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' },
-    formGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' },
-    formGroup: { marginBottom: '8px' },
-    label: { display: 'block', marginBottom: '4px', fontWeight: '600', color: '#4A4A6A', fontSize: '0.8rem' },
-    input: { width: '100%', padding: '8px 10px', border: '2px solid #A8E6E0', borderRadius: '8px', fontSize: '0.85rem', background: '#FFF9F0', boxSizing: 'border-box', outline: 'none' },
-    select: { width: '100%', padding: '8px 10px', border: '2px solid #A8E6E0', borderRadius: '8px', fontSize: '0.85rem', background: '#FFF9F0', boxSizing: 'border-box', outline: 'none' },
-    textarea: { width: '100%', padding: '8px 10px', border: '2px solid #A8E6E0', borderRadius: '8px', fontSize: '0.85rem', background: '#FFF9F0', boxSizing: 'border-box', minHeight: '70px', resize: 'vertical', outline: 'none' },
-    infoCard: { background: 'linear-gradient(135deg, #FFF8DC 0%, #F5C4C4 100%)', borderRadius: '10px', padding: '10px', marginBottom: '12px', borderLeft: '4px solid #9B8AC4', fontSize: '0.8rem' },
-    checkboxGroup: { display: 'flex', flexWrap: 'wrap', gap: '5px' },
-    checkboxItem: { padding: '5px 10px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.75rem' },
-    dynamicListItem: { background: '#FFF9F0', borderRadius: '10px', padding: '10px', marginBottom: '8px', position: 'relative', border: '2px solid #A8E6E0' },
-    removeBtn: { position: 'absolute', top: '5px', right: '5px', width: '22px', height: '22px', borderRadius: '50%', border: 'none', background: '#F5C4C4', color: 'white', cursor: 'pointer', fontSize: '0.85rem', lineHeight: '1' },
-    addBtn: { width: '100%', padding: '8px', border: '2px dashed #7ECEC6', borderRadius: '10px', background: 'transparent', color: '#7ECEC6', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer' },
-    btnGroup: { display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '15px', flexWrap: 'wrap' },
-    btnPrimary: { padding: '10px 25px', border: 'none', borderRadius: '18px', fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer', background: 'linear-gradient(135deg, #9B8AC4 0%, #7B6BA4 100%)', color: 'white' },
-    btnSecondary: { padding: '10px 25px', border: '2px solid #9B8AC4', borderRadius: '18px', fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer', background: 'white', color: '#9B8AC4' },
-    btnSuccess: { padding: '12px 35px', border: 'none', borderRadius: '18px', fontSize: '1rem', fontWeight: '700', cursor: 'pointer', background: 'linear-gradient(135deg, #7ECEC6 0%, #5EBEB6 100%)', color: 'white' },
-    toast: { position: 'fixed', bottom: '25px', right: '25px', background: '#7ECEC6', color: 'white', padding: '15px 25px', borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', fontWeight: '600', zIndex: 1000 },
-    studentCard: { background: 'white', borderRadius: '15px', padding: '15px', marginBottom: '10px', border: '2px solid #A8E6E0', cursor: 'pointer', transition: 'all 0.3s ease' },
-    modal: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
-    modalContent: { background: 'white', borderRadius: '20px', padding: '25px', maxWidth: '350px', width: '90%' }
-  };
+    function selectStudent(index) {
+      const student = state.submissions[index];
+      state.form = { ...getDefaultForm(), ...student };
+      state.selectedStudent = student;
+      state.step = 1;
+      showToast(`✅ 已載入 ${student.studentName} 的資料`);
+    }
 
-  // 學生列表
-  const StudentListForm = () => (
-    <div style={styles.formSection}>
-      <div style={styles.sectionBar}></div>
-      <h2 style={styles.sectionTitle}>📋 已繳交學生列表</h2>
+    function renderCurriculum() {
+      const f = state.form;
+      const domains = ['領導才能(融合創造力)','專長領域(融合創造力)','創造力領域(融合獨立研究)','情意','創造能力','領導才能','獨立研究','情意發展','專長領域'];
+      return `<h3 style="color:#9B8AC4;margin-bottom:15px;">📚 教育目標與輔導重點</h3>
+        ${(f.courses||[]).map((c,i)=>`<div style="background:#FFF9F0;border-radius:10px;padding:15px;margin-bottom:15px;border:2px solid #A8E6E0;position:relative;">
+          ${i>0?`<button onclick="removeCourse(${i})" style="position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;border:none;background:#F5C4C4;color:white;cursor:pointer;">×</button>`:''}
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px;">
+            <div><label style="${styles.label}">學習領域</label><select id="course_domain_${i}" style="${styles.inputT}">${domains.map(d=>`<option ${c.domain===d?'selected':''}>${d}</option>`).join('')}</select></div>
+            <div><label style="${styles.label}">課程名稱</label><input type="text" id="course_name_${i}" value="${c.courseName||''}" style="${styles.inputT}" /></div>
+            <div><label style="${styles.label}">授課教師</label><input type="text" id="course_teacher_${i}" value="${c.teacher||''}" style="${styles.inputT}" /></div>
+          </div>
+          <div><label style="${styles.label}">學年/學期目標</label><textarea id="course_goals_${i}" style="${styles.inputT}min-height:100px;">${c.goals||''}</textarea></div>
+        </div>`).join('')}
+        <button onclick="addCourse()" style="width:100%;padding:10px;border:2px dashed #7ECEC6;border-radius:10px;background:transparent;color:#7ECEC6;font-weight:700;cursor:pointer;">+ 新增課程</button>`;
+    }
+
+    function addCourse() { saveFormData(); state.form.courses=[...(state.form.courses||[]),{domain:'創造能力',courseName:'',teacher:'',goals:''}]; render(); }
+    function removeCourse(i) { saveFormData(); state.form.courses=state.form.courses.filter((_,idx)=>idx!==i); render(); }
+
+    function renderTimetable() {
+      const days=['一','二','三','四','五'];
+      const periods=['早自習','1','2','3','4','午休','5','6','7'];
+      const tt=state.form.timetable||{};
+      return `<h3 style="color:#9B8AC4;margin-bottom:15px;">📅 課表</h3>
+        <div style="overflow-x:auto;"><table style="width:100%;border-collapse:separate;border-spacing:2px;min-width:400px;">
+          <thead><tr><th style="background:#9B8AC4;color:white;padding:6px;border-radius:4px;font-size:0.75rem;">節次</th>${days.map(d=>`<th style="background:#9B8AC4;color:white;padding:6px;border-radius:4px;font-size:0.75rem;">週${d}</th>`).join('')}</tr></thead>
+          <tbody>${periods.map(p=>`<tr><td style="background:#7ECEC6;color:white;padding:4px;border-radius:4px;text-align:center;font-size:0.7rem;">${p}</td>${days.map(d=>{const key=`${d}-${p}`;const val=tt[key]||'';return`<td style="background:${val?'#F5E6B8':'#FFF9F0'};padding:3px;border-radius:4px;"><input type="text" id="tt_${key}" value="${val}" style="width:100%;padding:4px;border:1px solid #ddd;border-radius:3px;text-align:center;font-size:0.65rem;" /></td>`;}).join('')}</tr>`).join('')}</tbody>
+        </table></div>
+        <div style="margin-top:15px;"><label style="${styles.label}">課程安排說明（每行一門課：課程名稱 抽離/外加 節數）</label><textarea id="timetableNote" style="${styles.inputT}min-height:80px;" placeholder="【專長領域】專長探索(程式/積木) 外加1(早自習1) 1&#10;【情意領域】創意人特質 外加1(早自習1) 1&#10;【創造力領域】DFC創意挑戰 外加4(周五下午4) 4">${state.form.timetableNote||''}</textarea></div>`;
+    }
+
+    function renderMeetings() {
+      const f=state.form;
+      return `<h3 style="color:#9B8AC4;margin-bottom:15px;">📝 會議紀錄</h3>
+        ${(f.meetings||[]).map((m,i)=>`<div style="background:#FFF9F0;border-radius:10px;padding:15px;margin-bottom:10px;border:2px solid #A8E6E0;position:relative;">
+          ${i>0?`<button onclick="removeMeeting(${i})" style="position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;border:none;background:#F5C4C4;color:white;cursor:pointer;">×</button>`:''}
+          <div style="margin-bottom:10px;"><label style="${styles.label}">會議標題</label><input type="text" id="meeting_title_${i}" value="${m.title||''}" style="${styles.inputT}" placeholder="114學年度第一學期 IGP 期初會議" /></div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;">
+            <div><label style="${styles.label}">日期</label><input type="text" id="meeting_date_${i}" value="${m.date||''}" style="${styles.inputT}" placeholder="114/8/5" /></div>
+            <div><label style="${styles.label}">時間</label><input type="text" id="meeting_time_${i}" value="${m.time||''}" style="${styles.inputT}" placeholder="13:00-13:30" /></div>
+            <div><label style="${styles.label}">地點</label><input type="text" id="meeting_location_${i}" value="${m.location||''}" style="${styles.inputT}" placeholder="資優班教室" /></div>
+            <div><label style="${styles.label}">記錄者</label><input type="text" id="meeting_recorder_${i}" value="${m.recorder||''}" style="${styles.inputT}" /></div>
+          </div>
+          <div style="margin-top:10px;"><label style="${styles.label}">與會人員（每行一人）</label><textarea id="meeting_attendees_${i}" style="${styles.inputT}min-height:80px;" placeholder="資優班導師 劉力瑄&#10;資優班教師 高明聖&#10;普通班導師 洪淑卿&#10;家長 林尹雯&#10;學生 李想&#10;行政代表 特教組長 鄭麗美">${m.attendees||''}</textarea></div>
+          <div style="margin-top:10px;"><label style="${styles.label}">會議紀錄</label><textarea id="meeting_content_${i}" style="${styles.inputT}min-height:120px;">${m.content||''}</textarea></div>
+        </div>`).join('')}
+        <button onclick="addMeeting()" style="width:100%;padding:10px;border:2px dashed #7ECEC6;border-radius:10px;background:transparent;color:#7ECEC6;font-weight:700;cursor:pointer;">+ 新增會議</button>`;
+    }
+
+    function addMeeting() { saveFormData(); state.form.meetings=[...(state.form.meetings||[]),{title:'',date:'',time:'',location:'',attendees:'',content:'',recorder:''}]; render(); }
+    function removeMeeting(i) { saveFormData(); state.form.meetings=state.form.meetings.filter((_,idx)=>idx!==i); render(); }
+
+    function renderExport() {
+      const f=state.form;
+      return `<div style="text-align:center;">
+        <h3 style="color:#9B8AC4;margin-bottom:20px;">📄 匯出 Word 文件</h3>
+        <div style="background:#F5E6B8;border-radius:15px;padding:20px;margin-bottom:20px;text-align:left;">
+          <p><strong>學生：</strong>${f.studentName}（${f.school} ${f.grade}年${f.classNumber}班）</p>
+          <p><strong>個管教師：</strong>${f.caseTeacher||'未填'}</p>
+          <p><strong>課程數量：</strong>${(f.courses||[]).filter(c=>c.courseName).length} 門</p>
+          <p><strong>會議次數：</strong>${(f.meetings||[]).filter(m=>m.date).length} 次</p>
+        </div>
+        <button onclick="exportWord()" style="padding:18px 50px;border:none;border-radius:20px;background:linear-gradient(135deg,#7ECEC6 0%,#5EBEB6 100%);color:white;font-size:1.2rem;font-weight:700;cursor:pointer;">📄 下載 Word（與PDF格式100%相同）</button>
+        <p style="margin-top:10px;color:#666;font-size:0.85rem;">標楷體・無顏色・完全複製PDF格式</p>
+      </div>`;
+    }
+
+    // ===== Word 匯出（完全複製PDF格式）=====
+    async function exportWord() {
+      saveFormData();
+      const f = state.form;
+      const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, BorderStyle, WidthType, AlignmentType, VerticalAlign, PageBreak } = docx;
       
-      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
-        <span style={{color: '#666', fontSize: '0.9rem'}}>共 {submissions.length} 筆資料</span>
-        <button style={{padding: '8px 15px', border: 'none', borderRadius: '10px', background: '#7ECEC6', color: 'white', cursor: 'pointer', fontSize: '0.85rem'}} onClick={loadSubmissions}>
-          🔄 重新整理
-        </button>
-      </div>
+      const FONT = "標楷體";
+      const border = { style: BorderStyle.SINGLE, size: 4, color: "000000" };
+      const borders = { top: border, bottom: border, left: border, right: border };
+      
+      // 建立儲存格（無顏色）
+      const cell = (text, width, opts = {}) => new TableCell({
+        borders,
+        width: { size: width, type: WidthType.DXA },
+        verticalAlign: VerticalAlign.CENTER,
+        columnSpan: opts.span || 1,
+        rowSpan: opts.rowSpan || 1,
+        children: [new Paragraph({
+          alignment: opts.align || AlignmentType.CENTER,
+          spacing: { before: 60, after: 60 },
+          children: [new TextRun({ text: text || '', font: FONT, size: opts.size || 24 })]
+        })]
+      });
 
-      {isLoading ? (
-        <div style={{textAlign: 'center', padding: '40px', color: '#999'}}>
-          <div style={{fontSize: '2rem', marginBottom: '10px'}}>⏳</div>
-          載入中...
-        </div>
-      ) : submissions.length === 0 ? (
-        <div style={{textAlign: 'center', padding: '40px', color: '#999'}}>
-          <div style={{fontSize: '3rem', marginBottom: '15px'}}>📭</div>
-          <p>目前沒有家長繳交的資料</p>
-          <p style={{fontSize: '0.85rem', marginTop: '10px'}}>家長填寫完成後會自動顯示在這裡</p>
-        </div>
-      ) : (
-        <div>
-          {submissions.map((sub, index) => (
-            <div 
-              key={index} 
-              style={{...styles.studentCard, borderColor: selectedStudent?.key === sub.key ? '#9B8AC4' : '#A8E6E0'}}
-              onClick={() => selectStudent(sub)}
-            >
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                <div>
-                  <div style={{fontWeight: '700', fontSize: '1.1rem', color: '#4A4A6A'}}>{sub.studentName}</div>
-                  <div style={{color: '#666', fontSize: '0.85rem', marginTop: '4px'}}>
-                    {sub.school} {sub.grade}年{sub.classNumber}班
-                  </div>
-                </div>
-                <div style={{textAlign: 'right'}}>
-                  <div style={{
-                    padding: '4px 10px', 
-                    borderRadius: '10px', 
-                    fontSize: '0.75rem',
-                    background: sub.status === 'completed' ? '#E8F5E9' : '#FFF3E0',
-                    color: sub.status === 'completed' ? '#4CAF50' : '#FF9800'
-                  }}>
-                    {sub.status === 'completed' ? '已完成' : '待處理'}
-                  </div>
-                  <div style={{color: '#999', fontSize: '0.75rem', marginTop: '5px'}}>
-                    {new Date(sub.submittedAt).toLocaleDateString('zh-TW')}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+      // 多行儲存格
+      const cellLines = (lines, width, opts = {}) => new TableCell({
+        borders,
+        width: { size: width, type: WidthType.DXA },
+        verticalAlign: VerticalAlign.TOP,
+        columnSpan: opts.span || 1,
+        rowSpan: opts.rowSpan || 1,
+        children: (Array.isArray(lines) ? lines : [lines]).map(line => new Paragraph({
+          alignment: opts.align || AlignmentType.LEFT,
+          spacing: { before: 40, after: 40 },
+          children: [new TextRun({ text: line || '', font: FONT, size: opts.size || 24 })]
+        }))
+      });
 
-  // 基本資料
-  const BasicInfoForm = () => (
-    <div style={styles.formSection}>
-      <div style={styles.sectionBar}></div>
-      <h2 style={styles.sectionTitle}>👤 基本資料 <span style={{fontSize: '0.75rem', color: '#4CAF50'}}>（已匯入）</span></h2>
-      <div style={styles.formGrid}>
-        <div style={styles.formGroup}><label style={styles.label}>學生姓名</label><input style={styles.input} value={formData.studentName} onChange={e => updateFormData('studentName', e.target.value)} /></div>
-        <div style={styles.formGroup}><label style={styles.label}>出生日期</label><input style={styles.input} type="date" value={formData.birthDate} onChange={e => updateFormData('birthDate', e.target.value)} /></div>
-        <div style={styles.formGroup}><label style={styles.label}>鑑定文號</label><input style={styles.input} value={formData.identificationNumber} onChange={e => updateFormData('identificationNumber', e.target.value)} placeholder="113年4月22日..." /></div>
-        <div style={styles.formGroup}><label style={styles.label}>學年度</label><input style={styles.input} value={formData.schoolYear} onChange={e => updateFormData('schoolYear', e.target.value)} /></div>
-        <div style={styles.formGroup}><label style={styles.label}>學校</label><input style={styles.input} value={formData.school} onChange={e => updateFormData('school', e.target.value)} /></div>
-        <div style={styles.formGroup}><label style={styles.label}>班級</label><input style={styles.input} value={`${formData.grade}年${formData.classNumber}班`} readOnly /></div>
-        <div style={styles.formGroup}><label style={styles.label}>導師</label><input style={styles.input} value={formData.homeTeacher} onChange={e => updateFormData('homeTeacher', e.target.value)} /></div>
-        <div style={styles.formGroup}><label style={styles.label}>個管教師 *</label><input style={styles.input} value={formData.caseTeacher} onChange={e => updateFormData('caseTeacher', e.target.value)} placeholder="請輸入您的姓名" /></div>
-        <div style={styles.formGroup}><label style={styles.label}>法定代理人</label><input style={styles.input} value={formData.guardian} readOnly /></div>
-      </div>
-    </div>
-  );
+      const sections = [];
 
-  // 家庭背景
-  const FamilyBackgroundForm = () => (
-    <div style={styles.formSection}>
-      <div style={styles.sectionBar}></div>
-      <h2 style={styles.sectionTitle}>👨‍👩‍👧 家庭背景</h2>
-      <div style={styles.formGrid}>
-        <div style={{background: '#FFF9F0', padding: '10px', borderRadius: '8px'}}><strong>照顧者：</strong>{formData.actualCaregiver}</div>
-        <div style={{background: '#FFF9F0', padding: '10px', borderRadius: '8px'}}><strong>經濟：</strong>{formData.economicStatus}</div>
-        <div style={{background: '#FFF9F0', padding: '10px', borderRadius: '8px'}}><strong>管教：</strong>{formData.parentingStyle}</div>
-        <div style={{background: '#FFF9F0', padding: '10px', borderRadius: '8px'}}><strong>互動：</strong>{formData.familyInteraction}</div>
-      </div>
-      {formData.parentExpectation && (
-        <div style={{marginTop: '12px', background: '#FFF9F0', padding: '12px', borderRadius: '10px'}}>
-          <strong>期望：</strong>{formData.parentExpectation}
-        </div>
-      )}
-    </div>
-  );
+      // ===== 第1頁：封面（與PDF第1頁完全相同）=====
+      sections.push(
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 },
+          children: [new TextRun({ text: `桃園市資賦優異學生 ${f.studentName} 個別輔導計畫（IGP）`, font: FONT, size: 36, bold: true })]
+        }),
+        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: `教育階段：■${f.educationStage||'國小'}`, font: FONT, size: 24 })] }),
+        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: `資優類別：■${f.giftedType||'創造能力'}`, font: FONT, size: 24 })] }),
+        new Paragraph({ spacing: { after: 300 }, children: [new TextRun({ text: `安置方式：■${f.placementType||'分散式資源班'}`, font: FONT, size: 24 })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [
+              cell('學年+學期', 1400), cell('就讀學校', 1400), cell('年級/班別', 1400),
+              cell('原班導師', 1400), cell('個管教師', 1400), cell('家長簽名', 1400), cell('學生簽名', 1400),
+            ]}),
+            new TableRow({ children: [
+              cell(`${f.schoolYear}學年度\n${f.semester}`, 1400), cell(f.school, 1400), cell(`${f.grade}年${f.classNumber}班`, 1400),
+              cell(f.homeTeacher, 1400), cell(f.caseTeacher, 1400), cell('', 1400), cell('', 1400),
+            ]}),
+          ]
+        }),
+        new Paragraph({ children: [new PageBreak()] })
+      );
 
-  // 評量紀錄
-  const AssessmentForm = () => (
-    <div style={styles.formSection}>
-      <div style={styles.sectionBar}></div>
-      <h2 style={styles.sectionTitle}>📊 評量紀錄</h2>
-      <div style={{marginBottom: '12px', fontSize: '0.85rem'}}>
-        <p><strong>科學興趣：</strong>{formData.scienceInterests?.join('、') || '無'}</p>
-        <p><strong>人文藝術：</strong>{formData.humanitiesInterests?.join('、') || '無'}</p>
-      </div>
-      <h3 style={{marginTop: '15px', marginBottom: '10px', color: '#7B6BA4', fontSize: '0.95rem'}}>鑑定資料（教師填寫）</h3>
-      {(formData.assessments || [{ toolName: '', testDate: '', standardScore: '', percentile: '' }]).map((assessment, index) => (
-        <div key={index} style={styles.dynamicListItem}>
-          <div style={styles.formGrid}>
-            <div style={styles.formGroup}><label style={styles.label}>評量工具</label><input style={styles.input} value={assessment.toolName || ''} onChange={e => updateNestedData('assessments', index, 'toolName', e.target.value)} /></div>
-            <div style={styles.formGroup}><label style={styles.label}>施測日期</label><input style={styles.input} type="date" value={assessment.testDate || ''} onChange={e => updateNestedData('assessments', index, 'testDate', e.target.value)} /></div>
-            <div style={styles.formGroup}><label style={styles.label}>標準分數</label><input style={styles.input} value={assessment.standardScore || ''} onChange={e => updateNestedData('assessments', index, 'standardScore', e.target.value)} /></div>
-            <div style={styles.formGroup}><label style={styles.label}>百分等級</label><input style={styles.input} value={assessment.percentile || ''} onChange={e => updateNestedData('assessments', index, 'percentile', e.target.value)} /></div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+      // ===== 第2頁：一、基本資料與家庭背景（與PDF第2頁完全相同）=====
+      sections.push(
+        new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: '一、基本資料與家庭背景', font: FONT, size: 28, bold: true })] }),
+        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '（一）基本資料', font: FONT, size: 24 })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [
+              cell('學生姓名', 1400), cell(f.studentName, 1800),
+              cell('出生日期', 1400), cell(f.birthDate, 1800),
+              cell('性別', 800), cell(f.gender, 800),
+            ]}),
+            new TableRow({ children: [
+              cell('鑑定文號', 1400), cellLines([f.identificationNumber || ''], 4600, { span: 3 }),
+              cell('學生\nE-mail', 1000), cell(f.email || '', 1600),
+            ]}),
+            new TableRow({ children: [
+              cell('住家電話', 1400), cell(f.homePhone || '', 1800),
+              cell('住　址', 1400), cellLines([f.address || ''], 4400, { span: 3 }),
+            ]}),
+            new TableRow({ children: [
+              cell('法定代理人', 1400), cell(f.guardian, 1800),
+              cell('法定代理人\n聯絡電話', 1600), cell(f.guardianPhone, 4200, { span: 3 }),
+            ]}),
+          ]
+        }),
+        new Paragraph({ spacing: { before: 200, after: 100 }, children: [new TextRun({ text: '（二）家庭成員（已就業者請填服務機關，就學者請填就讀學校）', font: FONT, size: 24 })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [
+              cell('稱謂', 1000), cell('姓名', 1600), cell('畢業科系', 1400),
+              cell('專長', 1600), cell('聯絡電話', 1800), cell('服務機關/就讀學校', 2600),
+            ]}),
+            new TableRow({ children: [
+              cell(f.guardianRelation, 1000), cell(f.guardian, 1600), cell('', 1400),
+              cell('', 1600), cell(f.guardianPhone, 1800), cell('', 2600),
+            ]}),
+          ]
+        }),
+        new Paragraph({ spacing: { before: 200, after: 100 }, children: [new TextRun({ text: '（三）家庭狀況', font: FONT, size: 24 })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [
+              cell('實際照顧者', 2500), cell(f.actualCaregiver, 2500),
+              cell('家庭經濟狀況', 2500), cell(f.economicStatus, 2500),
+            ]}),
+            new TableRow({ children: [
+              cell('實際照顧者\n管教態度', 2500), cell(f.parentingStyle, 2500),
+              cell('與家人互動情形', 2500), cell(f.familyInteraction, 2500),
+            ]}),
+            new TableRow({ children: [
+              cell('對孩子的期望', 2500), cellLines([f.parentExpectation || ''], 7500, { span: 3 }),
+            ]}),
+          ]
+        }),
+        new Paragraph({ children: [new PageBreak()] })
+      );
 
-  // 優弱勢分析
-  const StrengthWeaknessForm = () => {
-    const allTraits = [
-      { id: '①', label: '觀察' }, { id: '②', label: '記憶' }, { id: '③', label: '理解' }, { id: '④', label: '推理' },
-      { id: '⑤', label: '分析' }, { id: '⑥', label: '創造' }, { id: '⑦', label: '問題解決' },
-      { id: '⑧', label: '專注' }, { id: '⑨', label: '動機' }, { id: '⑩', label: '情緒' }, { id: '⑪', label: '領導' },
-      { id: '⑫', label: '數學' }, { id: '⑬', label: '國文' }, { id: '⑭', label: '英文' }, { id: '⑮', label: '資訊' }
-    ];
+      // ===== 第3頁：（四）教育轉銜紀錄（與PDF第3頁完全相同）=====
+      sections.push(
+        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '（四）教育轉銜紀錄', font: FONT, size: 24 })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [
+              cell('階段', 1200), cell('校名', 1400), cell('班級', 1200),
+              cell('普通班導師', 1400), cell('資優教育\n個管教師', 1400), cell('服務類型（可複選）', 3400),
+            ]}),
+            new TableRow({ children: [
+              cell('國小\n3-4年級', 1200), cell(f.school, 1400), cell(`${f.grade}年${f.classNumber}班`, 1200),
+              cell(f.homeTeacher, 1400), cell(f.caseTeacher, 1400),
+              cellLines(['□縮短修業年限', '■資優資源班', '□資優教育方案', '　□校本□區域', '□巡迴輔導', '　□身障□資優', '□身心障礙資源班', '□其他（請說明）'], 3400, { size: 20 }),
+            ]}),
+            new TableRow({ children: [
+              cell('國小\n5-6年級', 1200), cell('', 1400), cell('', 1200), cell('', 1400), cell('', 1400),
+              cellLines(['□縮短修業年限', '□資優資源班', '□資優教育方案', '　□校本□區域', '□巡迴輔導', '　□身障□資優', '□身心障礙資源班', '□其他（請說明）'], 3400, { size: 20 }),
+            ]}),
+            new TableRow({ children: [
+              cell('國中', 1200), cell('', 1400), cell('', 1200), cell('', 1400), cell('', 1400),
+              cellLines(['□縮短修業年限', '□資優資源班', '□資優教育方案', '　□校本□區域', '□巡迴輔導', '　□身障□資優', '□身心障礙資源班', '□其他（請說明）'], 3400, { size: 20 }),
+            ]}),
+          ]
+        }),
+        new Paragraph({ children: [new PageBreak()] })
+      );
 
-    const toggleTrait = (field, id) => {
-      const current = formData[field] || [];
-      updateFormData(field, current.includes(id) ? current.filter(i => i !== id) : [...current, id]);
-    };
+      // ===== 第4頁：二、鑑定評量與表現記錄（與PDF第4頁完全相同）=====
+      sections.push(
+        new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: '二、鑑定評量與表現記錄', font: FONT, size: 28, bold: true })] }),
+        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '（一）鑑定資料（依據鑑定結果通知書）', font: FONT, size: 24 })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [
+              cell('評量工具名稱', 4000), cell('施測日期', 2000),
+              cell('評量結果（擇一填寫）', 4000, { span: 2 }),
+            ]}),
+            new TableRow({ children: [
+              cell('', 4000), cell('', 2000), cell('標準分數', 2000), cell('百分等級', 2000),
+            ]}),
+            new TableRow({ children: [ cell('', 4000), cell('', 2000), cell('', 2000), cell('', 2000) ]}),
+          ]
+        }),
+        new Paragraph({ spacing: { before: 50, after: 150 }, children: [new TextRun({ text: '※評量工具名稱欄位:一般智能資優測驗，僅需填寫「團體/個別智力測驗」。', font: FONT, size: 20 })] }),
+        new Paragraph({ spacing: { before: 100, after: 100 }, children: [new TextRun({ text: '（二）生涯、興趣與其他測驗/量表', font: FONT, size: 24 })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [ cell('測驗名稱', 4000), cell('測驗日期', 2000), cell('評量結果', 4000) ]}),
+            new TableRow({ children: [ cell('', 4000), cell('', 2000), cell('', 4000) ]}),
+          ]
+        }),
+        new Paragraph({ children: [new PageBreak()] })
+      );
 
-    return (
-      <div style={styles.formSection}>
-        <div style={styles.sectionBar}></div>
-        <h2 style={styles.sectionTitle}>⚖️ 優弱勢分析</h2>
-        <div style={styles.infoCard}><p><span style={{color: '#7ECEC6'}}>■綠=優勢</span> | <span style={{color: '#E8A5A5'}}>■粉=弱勢</span></p></div>
-        
-        <div style={{display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '15px'}}>
-          {allTraits.map(trait => (
-            <div key={trait.id} style={{display: 'flex', gap: '2px'}}>
-              <div style={{...styles.checkboxItem, background: (formData.strengths || []).includes(trait.id) ? '#7ECEC6' : '#F5E6B8', color: (formData.strengths || []).includes(trait.id) ? 'white' : '#4A4A6A'}} onClick={() => toggleTrait('strengths', trait.id)}>{trait.id}{trait.label}↑</div>
-              <div style={{...styles.checkboxItem, background: (formData.weaknesses || []).includes(trait.id) ? '#F5C4C4' : '#F5E6B8', color: (formData.weaknesses || []).includes(trait.id) ? 'white' : '#4A4A6A'}} onClick={() => toggleTrait('weaknesses', trait.id)}>↓</div>
-            </div>
-          ))}
-        </div>
-        
-        <div style={styles.formGroup}><label style={styles.label}>質性描述</label><textarea style={{...styles.textarea, minHeight: '100px'}} value={formData.analysisDescription || ''} onChange={e => updateFormData('analysisDescription', e.target.value)} placeholder="請撰寫學生優弱勢能力分析..." /></div>
-      </div>
-    );
-  };
+      // ===== 第5頁：興趣分析與得獎紀錄（與PDF第5頁完全相同）=====
+      sections.push(
+        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '（三）興趣分析（可複選）', font: FONT, size: 24 })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [ cell('科學興趣', 3300), cell('人文與藝術興趣', 3400), cell('其他', 3300) ]}),
+            new TableRow({ children: [
+              cellLines(['□ ' + (f.scienceInterests||[]).join(', ')], 3300),
+              cellLines(['□ ' + (f.humanitiesInterests||[]).join(', ')], 3400),
+              cellLines(['□ ' + (f.otherInterests||[]).join(', ')], 3300),
+            ]}),
+          ]
+        }),
+        new Paragraph({ spacing: { before: 200, after: 100 }, children: [new TextRun({ text: '（四）得獎紀錄（檢附相關學科競賽得獎資料）', font: FONT, size: 24 })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [
+              cell('', 400), cell('日期', 1600), cell('競賽/活動名稱', 3000),
+              cell('主辦單位', 1800), cell('獎項', 1400), cell('得獎類型', 1400),
+            ]}),
+            ...[1,2,3,4,5,6,7,8].map(n => new TableRow({ children: [
+              cell(n.toString(), 400), cell('', 1600), cell('', 3000), cell('', 1800), cell('', 1400), cell('', 1400),
+            ]})),
+          ]
+        }),
+        new Paragraph({ children: [new PageBreak()] })
+      );
 
-  // 課程計畫
-  const CurriculumForm = () => {
-    const domains = ['創造能力', '領導才能', '獨立研究', '情意發展', '專長領域'];
-    const updateCourse = (index, field, value) => {
-      const newCourses = [...(formData.courses || [])];
-      newCourses[index] = { ...newCourses[index], [field]: value };
-      updateFormData('courses', newCourses);
-    };
+      // ===== 第6頁：國小階段標題頁（與PDF第6頁完全相同）=====
+      sections.push(
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 2000, after: 600 }, children: [new TextRun({ text: `國小階段: ${f.grade}年級`, font: FONT, size: 36, bold: true })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 }, children: [new TextRun({ text: '三、優弱勢分析', font: FONT, size: 28 })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 }, children: [new TextRun({ text: '四、課程需求評估', font: FONT, size: 28 })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 }, children: [new TextRun({ text: '五、教育目標與輔導重點', font: FONT, size: 28 })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 }, children: [new TextRun({ text: '六、相關會議記錄', font: FONT, size: 28 })] }),
+        new Paragraph({ children: [new PageBreak()] })
+      );
 
-    return (
-      <div style={styles.formSection}>
-        <div style={styles.sectionBar}></div>
-        <h2 style={styles.sectionTitle}>📚 課程計畫</h2>
-        {(formData.courses || []).map((course, index) => (
-          <div key={index} style={styles.dynamicListItem}>
-            <h4 style={{marginBottom: '10px', color: '#7B6BA4'}}>課程 {index + 1}</h4>
-            <div style={styles.formGrid}>
-              <div style={styles.formGroup}><label style={styles.label}>領域</label><select style={styles.select} value={course.domain || ''} onChange={e => updateCourse(index, 'domain', e.target.value)}>{domains.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
-              <div style={styles.formGroup}><label style={styles.label}>課程名稱</label><input style={styles.input} value={course.courseName || ''} onChange={e => updateCourse(index, 'courseName', e.target.value)} /></div>
-              <div style={styles.formGroup}><label style={styles.label}>授課教師</label><input style={styles.input} value={course.teacher || ''} onChange={e => updateCourse(index, 'teacher', e.target.value)} /></div>
-            </div>
-            <div style={styles.formGroup}><label style={styles.label}>目標</label><textarea style={styles.textarea} value={course.goals || ''} onChange={e => updateCourse(index, 'goals', e.target.value)} /></div>
-          </div>
-        ))}
-        <button style={styles.addBtn} onClick={() => updateFormData('courses', [...(formData.courses || []), { domain: '創造能力', courseName: '', teacher: '', goals: '' }])}>+ 新增課程</button>
-      </div>
-    );
-  };
+      // ===== 第7頁：三、優弱勢能力評析（與PDF第7頁完全相同）=====
+      sections.push(
+        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '三、優弱勢能力評析（每學年評估一次）', font: FONT, size: 28, bold: true })] }),
+        new Paragraph({ spacing: { after: 50 }, children: [new TextRun({ text: '相關資優能力參考號碼', font: FONT, size: 22 })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [ cell('認知特質', 3300), cell('情意特質', 3400), cell('學科能力', 3300) ]}),
+            new TableRow({ children: [
+              cellLines(['①觀察能力','②記憶能力','③理解能力','④推理能力','⑤分析能力','⑥應用能力','⑦評鑑能力','⑧創造能力','⑨批判能力','⑩問題解決','⑪後設能力','⑫其他：','　　___________'], 3300, { size: 20 }),
+              cellLines(['⑬專注能力','⑭成就動機','⑮要求完美','⑯溝通協調','⑰情緒控制','⑱挫折容忍','⑲正向思考','⑳領導能力','㉑合作能力','㉒自信心','㉓同理心','㉔復原力','㉕其他：','　　___________'], 3400, { size: 20 }),
+              cellLines(['㉖數學','自然','　㉗物理','　㉘生物','　㉙化學','　㉚地科','語文','　㉛國文','　㉜英文','社會','　㉝歷史','　㉞地理','　㉟公民','㊱資訊','㊲生科','㊳其他：','　　___________'], 3300, { size: 20 }),
+            ]}),
+          ]
+        }),
+        new Paragraph({ spacing: { before: 150 }, children: [] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [
+              cell('年級', 800), cell('填寫日期', 1500), cell('填寫者\n(學生/家長/教師)', 2500),
+              cell('優勢能力(填代號)', 2600), cell('弱勢能力(填代號)', 2600),
+            ]}),
+            new TableRow({ children: [
+              cell(f.grade, 800),
+              cell(f.analysisDate || '', 1500),
+              cell(f.analysisWriter || `${f.caseTeacher}(教師)`, 2500),
+              cellLines([(f.strengths||[]).join(' ')], 2600, { size: 18 }),
+              cellLines([(f.weaknesses||[]).join(' ')], 2600, { size: 18 }),
+            ]}),
+          ]
+        }),
+        new Paragraph({ spacing: { before: 100, after: 50 }, children: [new TextRun({ text: '優弱勢能力綜合評析(質性描述)', font: FONT, size: 22 })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [ cellLines((f.analysisDescription || '').split('\n'), 10000) ]}),
+          ]
+        }),
+        new Paragraph({ children: [new PageBreak()] })
+      );
 
-  // 課表
-  const TimetableForm = () => {
-    const days = ['一', '二', '三', '四', '五'];
-    const periods = ['1', '2', '3', '4', '5', '6', '7'];
-    const [editCell, setEditCell] = useState(null);
-    const [input, setInput] = useState('');
+      // ===== 四、課程需求評估 & 五、教育目標與輔導重點 =====
+      sections.push(
+        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '四、課程需求評估（每學期評估一次）', font: FONT, size: 24 })] }),
+        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '五、教育目標與輔導重點（每學期評估一次）', font: FONT, size: 24 })] }),
+        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '含學科、專題、獨立研究與特殊教育需求課程等', font: FONT, size: 20 })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [
+              cell('領域\n學習\n課程', 1500, { rowSpan: 2 }),
+              cellLines(['國語文　英語文　第二外國語　數學領域'], 8500, { span: 5 }),
+            ]}),
+            new TableRow({ children: [
+              cellLines(['社會領域　自然科學領域　藝術領域'], 8500, { span: 5 }),
+            ]}),
+            new TableRow({ children: [
+              cell('特殊\n需求\n課程', 1500, { rowSpan: 2 }),
+              cellLines(['■創造能力　□領導才能　□獨立研究　■情意發展　■專長領域'], 8500, { span: 5 }),
+            ]}),
+            new TableRow({ children: [
+              cellLines(['□創造能力　□領導才能　□獨立研究　□情意發展　□專長領域'], 8500, { span: 5 }),
+            ]}),
+          ]
+        }),
+        new Paragraph({ spacing: { after: 200 }, children: [] })
+      );
 
-    return (
-      <div style={styles.formSection}>
-        <div style={styles.sectionBar}></div>
-        <h2 style={styles.sectionTitle}>📅 課表排程</h2>
-        <div style={{overflowX: 'auto'}}>
-          <table style={{width: '100%', borderCollapse: 'separate', borderSpacing: '3px'}}>
-            <thead>
-              <tr>
-                <th style={{background: '#9B8AC4', color: 'white', padding: '8px', borderRadius: '5px', fontSize: '0.75rem'}}>節次</th>
-                {days.map(d => <th key={d} style={{background: '#9B8AC4', color: 'white', padding: '8px', borderRadius: '5px', fontSize: '0.75rem'}}>週{d}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {periods.map(p => (
-                <tr key={p}>
-                  <td style={{background: '#7ECEC6', color: 'white', padding: '6px', borderRadius: '5px', textAlign: 'center', fontSize: '0.7rem'}}>第{p}節</td>
-                  {days.map(d => {
-                    const key = `${d}-${p}`;
-                    const val = (formData.timetable || {})[key];
-                    return (
-                      <td key={key} style={{background: val ? '#F5E6B8' : '#FFF9F0', padding: '5px', borderRadius: '5px', textAlign: 'center', cursor: 'pointer', fontSize: '0.7rem'}} onClick={() => { setEditCell(key); setInput(val || ''); }}>
-                        {editCell === key ? (
-                          <input autoFocus value={input} onChange={e => setInput(e.target.value)} onBlur={() => { updateFormData('timetable', {...(formData.timetable || {}), [key]: input}); setEditCell(null); }} onKeyPress={e => e.key === 'Enter' && e.target.blur()} style={{width: '100%', padding: '3px', border: '1px solid #9B8AC4', borderRadius: '3px', fontSize: '0.7rem'}} />
-                        ) : (val || '+')}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
+      // 每個課程
+      (f.courses || []).filter(c => c.courseName).forEach((course, idx) => {
+        sections.push(
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              new TableRow({ children: [
+                cell('學習領域', 1400), cell(course.domain, 2800),
+                cell('課程名稱', 1400), cell(course.courseName, 2000),
+                cell('授課教師', 1200), cell(course.teacher, 1600),
+              ]}),
+              new TableRow({ children: [
+                cell('學年/學期\n目標', 1400),
+                cellLines((course.goals || '').split('\n'), 9000, { span: 5 }),
+              ]}),
+              new TableRow({ children: [
+                cell('教育需求與\n輔導建議事\n項', 1400, { rowSpan: 3 }),
+                cellLines([
+                  '認知教學方面',
+                  '內容調整（■加深加廣　□獨立研究　□濃縮加速/縮短修業　□其他　　　）',
+                  '歷程調整（■思考訓練　□研究方法訓練　■學習策略訓練　■科技工具運用　□其他　　　）',
+                  '結果調整（□作業調整　□評量調整　■成果品質　■成果分享　□其他　　　）',
+                  '環境調整（□自學空間　□校外學習　□興趣中心　□校外交流　□其他　　　）',
+                ], 9000, { span: 5, size: 20 }),
+              ]}),
+              new TableRow({ children: [
+                cellLines([
+                  '情意輔導方面',
+                  '輔導重點（■情意技能　□親子互動　■同儕互動　■情緒調適　□壓力調適　■自我認識　□服務關懷　□自我期待　■學習動機　□生涯規劃　□其他　　　）',
+                  '輔導方式（■融入學科　■團體輔導　□小組輔導　□個別輔導　□親職教育　□其他　　　）',
+                ], 9000, { span: 5, size: 20 }),
+              ]}),
+              new TableRow({ children: [
+                cellLines([
+                  '技能培訓方面',
+                  '培訓重點（□生活技能　■學習技能　□時間管理　□自我管理　□其他　　　）',
+                  '培訓方式（■融入學科　□團體訓練　□小組訓練　□個別訓練　□其他　　　）',
+                ], 9000, { span: 5, size: 20 }),
+              ]}),
+            ]
+          }),
+          new Paragraph({ spacing: { after: 100 }, children: [] }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              new TableRow({ children: [
+                cell('項次', 700), cell('學習表現調整\n（調整部分請底線註記）', 5500),
+                cell('評量方式', 1600), cell('評量結果', 2200, { span: 2 }),
+              ]}),
+              new TableRow({ children: [
+                cell('', 700), cell('', 5500), cell('', 1600),
+                cell('學生\n自評', 1100), cell('教師\n評分', 1100),
+              ]}),
+              ...[1,2,3,4,5].map(n => new TableRow({ children: [
+                cell(n.toString(), 700), cell('', 5500), cell('', 1600), cell('', 1100), cell('', 1100),
+              ]})),
+            ]
+          }),
+          new Paragraph({ spacing: { after: 200 }, children: [] })
+        );
+      });
 
-  // 會議紀錄
-  const MeetingForm = () => (
-    <div style={styles.formSection}>
-      <div style={styles.sectionBar}></div>
-      <h2 style={styles.sectionTitle}>📝 會議紀錄</h2>
-      {(formData.meetings || []).map((meeting, index) => (
-        <div key={index} style={styles.dynamicListItem}>
-          {index > 0 && <button style={styles.removeBtn} onClick={() => removeArrayItem('meetings', index)}>×</button>}
-          <div style={styles.formGrid}>
-            <div style={styles.formGroup}><label style={styles.label}>日期</label><input style={styles.input} type="date" value={meeting.date || ''} onChange={e => updateNestedData('meetings', index, 'date', e.target.value)} /></div>
-            <div style={styles.formGroup}><label style={styles.label}>時間</label><input style={styles.input} value={meeting.time || ''} onChange={e => updateNestedData('meetings', index, 'time', e.target.value)} /></div>
-            <div style={styles.formGroup}><label style={styles.label}>地點</label><input style={styles.input} value={meeting.location || ''} onChange={e => updateNestedData('meetings', index, 'location', e.target.value)} /></div>
-            <div style={styles.formGroup}><label style={styles.label}>記錄者</label><input style={styles.input} value={meeting.recorder || ''} onChange={e => updateNestedData('meetings', index, 'recorder', e.target.value)} /></div>
-          </div>
-          <div style={styles.formGroup}><label style={styles.label}>與會人員</label><input style={styles.input} value={meeting.attendees || ''} onChange={e => updateNestedData('meetings', index, 'attendees', e.target.value)} /></div>
-          <div style={styles.formGroup}><label style={styles.label}>會議內容</label><textarea style={styles.textarea} value={meeting.content || ''} onChange={e => updateNestedData('meetings', index, 'content', e.target.value)} /></div>
-        </div>
-      ))}
-      <button style={styles.addBtn} onClick={() => addArrayItem('meetings', { date: '', time: '', location: '', attendees: '', content: '', recorder: '' })}>+ 新增會議</button>
-    </div>
-  );
+      sections.push(new Paragraph({ children: [new PageBreak()] }));
 
-  // 匯出
-  const ExportForm = () => (
-    <div style={styles.formSection}>
-      <div style={styles.sectionBar}></div>
-      <h2 style={styles.sectionTitle}>📄 匯出 IGP 文件</h2>
-      <div style={{background: '#F5E6B8', borderRadius: '12px', padding: '15px'}}>
-        <h3 style={{color: '#7B6BA4', marginBottom: '10px', fontSize: '1rem'}}>📋 資料摘要</h3>
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '6px'}}>
-          <div style={{background: 'white', padding: '8px', borderRadius: '6px', fontSize: '0.8rem'}}><strong>學生：</strong>{formData.studentName}</div>
-          <div style={{background: 'white', padding: '8px', borderRadius: '6px', fontSize: '0.8rem'}}><strong>班級：</strong>{formData.school} {formData.grade}年{formData.classNumber}班</div>
-          <div style={{background: 'white', padding: '8px', borderRadius: '6px', fontSize: '0.8rem'}}><strong>個管：</strong>{formData.caseTeacher || '未填'}</div>
-          <div style={{background: 'white', padding: '8px', borderRadius: '6px', fontSize: '0.8rem'}}><strong>課程：</strong>{(formData.courses || []).length} 門</div>
-        </div>
-      </div>
-      <div style={{textAlign: 'center', marginTop: '25px'}}>
-        <button style={styles.btnSuccess} onClick={exportWord}>📄 匯出 IGP 文件</button>
-      </div>
-    </div>
-  );
+      // ===== 課表（與PDF第12頁完全相同）=====
+      const days = ['一','二','三','四','五'];
+      const periods = [
+        { name: '服裝', time: '' },
+        { name: '早自習', time: '08:00~08:40' },
+        { name: '1', time: '08:45~09:25' },
+        { name: '2', time: '09:35~10:15' },
+        { name: '3', time: '10:30~11:10' },
+        { name: '4', time: '11:20~12:00' },
+        { name: '午休', time: '12:25~13:05' },
+        { name: '5', time: '13:10~13:50' },
+        { name: '6', time: '14:00~14:40' },
+        { name: '7', time: '14:55~15:35' },
+      ];
+      const tt = f.timetable || {};
 
-  const renderStep = () => {
-    switch(currentStep) {
-      case 0: return <StudentListForm />;
-      case 1: return <BasicInfoForm />;
-      case 2: return <FamilyBackgroundForm />;
-      case 3: return <AssessmentForm />;
-      case 4: return <StrengthWeaknessForm />;
-      case 5: return <CurriculumForm />;
-      case 6: return <TimetableForm />;
-      case 7: return <MeetingForm />;
-      case 8: return <ExportForm />;
-      default: return null;
+      sections.push(
+        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '（二）課表(請標註抽離及外加課程之課程名稱)', font: FONT, size: 24 })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 50 }, children: [new TextRun({ text: `桃園市桃園區${f.school}國民小學 ${f.schoolYear}學年度`, font: FONT, size: 22 })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 100 }, children: [new TextRun({ text: `${f.grade}年${f.classNumber}班 資優班學生課表　導師 ${f.homeTeacher}老師`, font: FONT, size: 22 })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [
+              cell('　　星期\n節次', 1800),
+              cell('一', 1640), cell('二', 1640), cell('三', 1640), cell('四', 1640), cell('五', 1640),
+            ]}),
+            ...periods.map(p => new TableRow({ children: [
+              cell(p.name + (p.time ? '\n' + p.time : ''), 1800, { size: 18 }),
+              ...days.map(d => cell(tt[`${d}-${p.name}`] || '', 1640, { size: 18 }))
+            ]})),
+          ]
+        }),
+        new Paragraph({ spacing: { before: 100, after: 50 }, children: [new TextRun({ text: '課程安排說明：', font: FONT, size: 22 })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [
+              cell('【特需領域】課程名稱', 4000), cell('抽離／外加', 3000), cell('節數', 3000),
+            ]}),
+            ...(f.timetableNote || '').split('\n').filter(l=>l.trim()).map(line => {
+              const parts = line.split(/\s+/);
+              return new TableRow({ children: [
+                cell(parts[0] || '', 4000, { align: AlignmentType.LEFT }),
+                cell(parts[1] || '', 3000),
+                cell(parts[2] || '', 3000),
+              ]});
+            }),
+          ]
+        }),
+        new Paragraph({ children: [new PageBreak()] })
+      );
+
+      // ===== 六、相關會議紀錄（與PDF第18頁完全相同）=====
+      sections.push(
+        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '六、相關會議紀錄', font: FONT, size: 28, bold: true })] }),
+        new Paragraph({ spacing: { after: 150 }, children: [new TextRun({ text: '※可用各校會議紀錄格式，但應包含會議日期、地點、與會人員、討論事項、家長/學生回饋意見、決議或修正後之課程內容簡述、各相關處室核章處，並應附上簽到表。', font: FONT, size: 18 })] })
+      );
+
+      (f.meetings || []).filter(m => m.date).forEach((meeting, idx) => {
+        sections.push(
+          new Paragraph({ spacing: { before: 150, after: 100 }, children: [new TextRun({ text: meeting.title || `${f.schoolYear}學年度${f.semester} IGP 會議`, font: FONT, size: 24, bold: true })] }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              new TableRow({ children: [
+                cell('會議日期:', 1100), cell(meeting.date, 1400),
+                cell('時間:', 700), cell(meeting.time, 1600),
+                cell('地點:', 700), cell(meeting.location, 1600),
+                cell('記錄者:', 900), cell(meeting.recorder, 1200),
+              ]}),
+            ]
+          }),
+          new Paragraph({ spacing: { before: 100, after: 50 }, children: [new TextRun({ text: '與會人員: (簽到表)', font: FONT, size: 22 })] }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              new TableRow({ children: [ cellLines((meeting.attendees || '').split('\n'), 10000) ]}),
+            ]
+          }),
+          new Paragraph({ spacing: { before: 100, after: 50 }, children: [new TextRun({ text: '會議紀錄：（應含討論事項、家長/學生回饋意見、決議或修正課程內容）', font: FONT, size: 22 })] }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              new TableRow({ children: [ cellLines((meeting.content || '').split('\n'), 10000) ]}),
+            ]
+          }),
+          new Paragraph({ spacing: { before: 150, after: 50 }, children: [new TextRun({ text: '核章處', font: FONT, size: 22 })] }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              new TableRow({ children: [
+                cell('個管教師', 2500), cell('特教組長', 2500), cell('輔導主任', 2500), cell('校長', 2500),
+              ]}),
+              new TableRow({ children: [ cell('', 2500), cell('', 2500), cell('', 2500), cell('', 2500) ]}),
+            ]
+          }),
+          new Paragraph({ spacing: { after: 200 }, children: [] })
+        );
+      });
+
+      sections.push(new Paragraph({ children: [new PageBreak()] }));
+
+      // ===== 七、重新安置紀錄 & 八、晤談或輔導紀錄（與PDF第21頁完全相同）=====
+      sections.push(
+        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '七、重新安置紀錄', font: FONT, size: 28, bold: true })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [
+              cell('日期', 1500), cell('評估需求說明', 3500), cell('評估結果概要敘述', 3500), cell('記錄人員', 1500),
+            ]}),
+            new TableRow({ children: [ cell('', 1500), cell('', 3500), cell('', 3500), cell('', 1500) ]}),
+          ]
+        }),
+        new Paragraph({ spacing: { before: 300, after: 100 }, children: [new TextRun({ text: '八、晤談或輔導紀錄', font: FONT, size: 28, bold: true })] }),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: [
+              cell('日期', 1000), cell('參與人員', 1200), cell('事件', 1500), cell('內容概要敘述', 2800), cell('處遇方式', 2000), cell('記錄人員', 1000),
+            ]}),
+            new TableRow({ children: [
+              cell('', 1000),
+              cellLines(['□本人','□母親','□父親','□其他','________'], 1200, { size: 18 }),
+              cell('', 1500), cell('', 2800),
+              cellLines(['□ 轉介二級','□ 協同導師','□ 定期晤談','□ 持續觀察','□ 其他 _______'], 2000, { size: 18 }),
+              cell('', 1000),
+            ]}),
+            new TableRow({ children: [
+              cell('', 1000),
+              cellLines(['□本人','□母親','□父親','□其他','________'], 1200, { size: 18 }),
+              cell('', 1500), cell('', 2800),
+              cellLines(['□ 轉介二級','□ 協同導師','□ 定期晤談','□ 持續觀察','□ 其他 _______'], 2000, { size: 18 }),
+              cell('', 1000),
+            ]}),
+          ]
+        }),
+        new Paragraph({ spacing: { before: 100 }, children: [new TextRun({ text: '※自行增刪表格。', font: FONT, size: 18 })] }),
+        new Paragraph({ children: [new TextRun({ text: '附件：如學習紀錄表、得獎資料、測驗紀錄等', font: FONT, size: 18 })] }),
+      );
+
+      const doc = new Document({
+        styles: { default: { document: { run: { font: FONT, size: 24 } } } },
+        sections: [{ 
+          properties: { 
+            page: { 
+              size: { width: 11906, height: 16838 }, 
+              margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 } 
+            } 
+          }, 
+          children: sections 
+        }]
+      });
+
+      const blob = await Packer.toBlob(doc);
+      saveAs(blob, `${f.schoolYear}學年度_${f.school}_${f.grade}年${f.classNumber}班_${f.studentName}_IGP.docx`);
+      showToast('✅ Word 文件已下載！');
     }
-  };
 
-  return (
-    <div style={styles.container}>
-      <header style={styles.header}>
-        <div>
-          <h1 style={styles.headerTitle}>IGP 資優學生輔導計畫</h1>
-          <div style={styles.headerBadge}>👩‍🏫 教師版</div>
-        </div>
-        <div style={styles.headerBtns}>
-          <button style={styles.headerBtn} onClick={() => setShowPasswordModal(true)}>🔧 密碼</button>
-          <button style={styles.headerBtn} onClick={onLogout}>← 登出</button>
-        </div>
-      </header>
+    function saveFormData() {
+      ['studentName','birthDate','gender','email','schoolYear','school','grade','classNumber','homeTeacher','guardian','guardianRelation','guardianPhone','address','actualCaregiver','economicStatus','parentingStyle','familyInteraction','parentExpectation','identificationNumber','caseTeacher','analysisDescription','analysisDate','analysisWriter','educationStage','giftedType','placementType','timetableNote'].forEach(field => {
+        const el = document.getElementById(field);
+        if (el) state.form[field] = el.value;
+      });
+      (state.form.courses || []).forEach((c, i) => {
+        ['domain','name','teacher','goals'].forEach(k => {
+          const el = document.getElementById(`course_${k}_${i}`);
+          if (el) state.form.courses[i][k === 'name' ? 'courseName' : k] = el.value;
+        });
+      });
+      ['一','二','三','四','五'].forEach(d => {
+        ['早自習','1','2','3','4','午休','5','6','7'].forEach(p => {
+          const el = document.getElementById(`tt_${d}-${p}`);
+          if (el) { if (!state.form.timetable) state.form.timetable = {}; state.form.timetable[`${d}-${p}`] = el.value; }
+        });
+      });
+      (state.form.meetings || []).forEach((m, i) => {
+        ['title','date','time','location','attendees','content','recorder'].forEach(k => {
+          const el = document.getElementById(`meeting_${k}_${i}`);
+          if (el) state.form.meetings[i][k] = el.value;
+        });
+      });
+    }
 
-      <div style={styles.progressContainer}>
-        <div style={styles.progressSteps}>
-          {steps.map((step, idx) => (
-            <div key={step.id} style={styles.step} onClick={() => (idx === 0 || selectedStudent) && setCurrentStep(idx)}>
-              <div style={{...styles.stepCircle, background: currentStep === idx ? '#9B8AC4' : currentStep > idx ? '#7ECEC6' : '#A8E6E0', opacity: idx > 0 && !selectedStudent ? 0.5 : 1}}>
-                {currentStep > idx ? '✓' : step.icon}
-              </div>
-              <span style={{...styles.stepLabel, color: currentStep === idx ? '#9B8AC4' : '#6B6B8D'}}>{step.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+    function bindEvents() {
+      document.querySelectorAll('input, select, textarea').forEach(el => {
+        el.addEventListener('change', saveFormData);
+        el.addEventListener('blur', saveFormData);
+      });
+      const pwdInput = document.getElementById('passwordInput');
+      if (pwdInput) pwdInput.addEventListener('keypress', e => { if (e.key === 'Enter') handleLogin(); });
+    }
 
-      {renderStep()}
-
-      {currentStep > 0 && selectedStudent && (
-        <div style={styles.btnGroup}>
-          <button style={styles.btnSecondary} onClick={() => setCurrentStep(prev => prev - 1)}>← 上一步</button>
-          {currentStep < steps.length - 1 && <button style={styles.btnPrimary} onClick={() => setCurrentStep(prev => prev + 1)}>下一步 →</button>}
-        </div>
-      )}
-
-      {toast.show && <div style={styles.toast}>{toast.message}</div>}
-
-      {showPasswordModal && (
-        <div style={styles.modal}>
-          <div style={styles.modalContent}>
-            <h2 style={{textAlign: 'center', marginBottom: '15px', color: '#9B8AC4', fontSize: '1.2rem'}}>🔧 修改密碼</h2>
-            <input type="password" placeholder="舊密碼" value={oldPwd} onChange={e => setOldPwd(e.target.value)} style={{...styles.input, marginBottom: '10px'}} />
-            <input type="password" placeholder="新密碼（至少4字元）" value={newPwd} onChange={e => setNewPwd(e.target.value)} style={{...styles.input, marginBottom: '10px'}} />
-            <input type="password" placeholder="確認新密碼" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} style={{...styles.input, marginBottom: '10px'}} />
-            {pwdError && <p style={{color: '#FF6B6B', fontSize: '0.85rem', textAlign: 'center'}}>❌ {pwdError}</p>}
-            {pwdSuccess && <p style={{color: '#4CAF50', fontSize: '0.85rem', textAlign: 'center'}}>✅ 修改成功！</p>}
-            <div style={{display: 'flex', gap: '8px', marginTop: '15px'}}>
-              <button style={{flex: 1, padding: '10px', border: 'none', borderRadius: '10px', background: '#E0E0E0', cursor: 'pointer'}} onClick={() => setShowPasswordModal(false)}>取消</button>
-              <button style={{flex: 1, padding: '10px', border: 'none', borderRadius: '10px', background: '#9B8AC4', color: 'white', cursor: 'pointer'}} onClick={handleChangePassword}>確認</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+    render();
+  </script>
+</body>
+</html>
