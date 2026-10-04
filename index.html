@@ -1,931 +1,251 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
+<!doctype html>
+<html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IGP 個別輔導計畫系統</title>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-  <script src="https://unpkg.com/docx@8.2.2/build/index.umd.js"></script>
-  <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Noto Sans TC', sans-serif; }
-    input, select, textarea, button { font-family: inherit; }
-    input:focus, select:focus, textarea:focus { outline: 2px solid #9B8AC4; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>線上 IGP 生成工具（資優特需領綱對應）</title>
+<style>
+  :root{ --blue:#2557a7; --blue2:#3b6fc0; --bg:#f4f6fb; --line:#d5dbe6; --ok:#1a7f4b; --warn:#b45309; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; font-family:"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;
+        background:var(--bg); color:#1c2330; line-height:1.6; }
+  header{ background:linear-gradient(120deg,#1f4c96,#3b6fc0); color:#fff; padding:18px 22px; }
+  header h1{ margin:0; font-size:20px; letter-spacing:.5px; }
+  header p{ margin:6px 0 0; font-size:13px; opacity:.9; }
+  .privacy{ background:#fff7e6; border:1px solid #f0c674; color:#8a5a00; font-size:12.5px;
+            padding:8px 22px; }
+  .privacy b{ color:#a34700; }
+  .tabs{ display:flex; gap:4px; padding:0 16px; background:#e8edf7; border-bottom:1px solid var(--line); }
+  .tab{ padding:11px 18px; cursor:pointer; border:none; background:transparent; font-size:15px;
+        color:#425; border-bottom:3px solid transparent; }
+  .tab.active{ color:var(--blue); border-bottom-color:var(--blue); font-weight:700; background:#fff; }
+  main{ max-width:1080px; margin:0 auto; padding:18px; }
+  .panel{ display:none; } .panel.active{ display:block; }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:16px 18px;
+         margin-bottom:16px; box-shadow:0 1px 3px rgba(30,50,90,.05); }
+  .card h2{ margin:0 0 12px; font-size:16px; color:var(--blue); border-left:4px solid var(--blue);
+            padding-left:9px; }
+  label{ font-size:13.5px; font-weight:600; color:#334; display:block; margin:10px 0 4px; }
+  input[type=text], textarea, select{ width:100%; padding:8px 10px; border:1px solid var(--line);
+    border-radius:6px; font-size:14px; font-family:inherit; background:#fff; }
+  textarea{ min-height:120px; resize:vertical; }
+  .row{ display:flex; gap:14px; flex-wrap:wrap; }
+  .row > div{ flex:1; min-width:150px; }
+  .chips{ display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
+  .chip{ padding:6px 13px; border:1px solid var(--line); border-radius:20px; cursor:pointer;
+         font-size:13.5px; background:#fff; user-select:none; }
+  .chip.on{ background:var(--blue); color:#fff; border-color:var(--blue); }
+  button.act{ background:var(--blue); color:#fff; border:none; padding:10px 20px; border-radius:7px;
+              font-size:14.5px; cursor:pointer; font-weight:600; }
+  button.act:hover{ background:#1f4c96; }
+  button.ghost{ background:#fff; color:var(--blue); border:1px solid var(--blue); padding:8px 15px;
+                border-radius:7px; cursor:pointer; font-size:13.5px; }
+  .hint{ font-size:12.5px; color:#667; margin-top:4px; }
+  .stagebadge{ display:inline-block; background:#eaf1fb; color:var(--blue); border-radius:5px;
+               padding:2px 9px; font-size:12.5px; margin-left:6px; }
+  .results{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media(max-width:820px){ .results{ grid-template-columns:1fr; } }
+  .listbox{ border:1px solid var(--line); border-radius:8px; max-height:420px; overflow:auto; }
+  .listhead{ position:sticky; top:0; background:#eef2fa; padding:7px 11px; font-weight:700;
+             font-size:13.5px; border-bottom:1px solid var(--line); color:#334; }
+  .grp{ padding:6px 11px 2px; font-size:12px; color:#7a8; font-weight:700; background:#fafbfe; }
+  .item{ display:flex; gap:8px; padding:6px 11px; border-bottom:1px solid #eef1f6; font-size:13.5px;
+         align-items:flex-start; }
+  .item:hover{ background:#f7faff; }
+  .item input{ margin-top:3px; }
+  .item .code{ color:var(--blue); font-weight:600; font-family:"Consolas",monospace; font-size:12px;
+               white-space:nowrap; }
+  .item.sug{ background:#f0f7f0; }
+  .score{ font-size:11px; color:#1a7f4b; margin-left:auto; white-space:nowrap; }
+  .out{ white-space:pre-wrap; font-family:"Microsoft JhengHei",sans-serif; font-size:13.5px;
+        background:#fbfcfe; border:1px solid var(--line); border-radius:8px; padding:12px;
+        max-height:360px; overflow:auto; }
+  .flex-between{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .small{ font-size:12.5px; color:#667; }
+  .coursecard{ border:1px solid var(--line); border-radius:9px; padding:12px; margin-bottom:12px;
+               background:#fcfdff; }
+  .del{ color:#c0392b; cursor:pointer; font-size:12.5px; border:1px solid #e6b0aa; background:#fff;
+        border-radius:6px; padding:4px 10px; }
+  .tag{ display:inline-block; font-size:11.5px; background:#eef2fa; border-radius:4px; padding:1px 7px;
+        margin:2px 3px 0 0; color:#456; }
+  details{ margin-top:8px; } summary{ cursor:pointer; font-size:13px; color:var(--blue); }
+  .ok{ color:var(--ok); } .warn{ color:var(--warn); }
+</style>
 </head>
 <body>
-  <div id="root"></div>
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyB_Gjscmk9pm31gsB5eVTBXtisIVFyDm6w",
-      authDomain: "igp-system.firebaseapp.com",
-      databaseURL: "https://igp-system-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "igp-system",
-      storageBucket: "igp-system.firebasestorage.app",
-      messagingSenderId: "403709187781",
-      appId: "1:403709187781:web:2afd0b3d65d239f1fe02ac"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    let state = {
-      userRole: null, isAuthenticated: false, password: localStorage.getItem('igp_pwd') || '0424',
-      step: 0, toast: '', submitting: false, submitted: false, loading: true,
-      submissions: [], selectedStudent: null, form: getDefaultForm()
-    };
-
-    function getDefaultForm() {
-      return {
-        studentName: '', birthDate: '', gender: '男', email: '', homePhone: '', address: '',
-        guardian: '', guardianPhone: '', guardianRelation: '父',
-        schoolYear: '114', semester: '上學期', school: '', grade: '3', classNumber: '', homeTeacher: '',
-        actualCaregiver: '父', economicStatus: '小康', parentingStyle: '民主式', familyInteraction: '良好', parentExpectation: '',
-        scienceInterests: [], humanitiesInterests: [], otherInterests: [],
-        cognitiveTraits: {}, emotionalTraits: {},
-        identificationNumber: '', caseTeacher: '',
-        educationStage: '國小', giftedType: '創造能力', placementType: '分散式資源班',
-        familyMembers: [{ relation: '', name: '', education: '', specialty: '', phone: '', workplace: '' }],
-        strengths: [], weaknesses: [], analysisDescription: '',
-        analysisDate: '', analysisWriter: '',
-        courses: [{ domain: '', courseName: '', teacher: '', goals: '' }],
-        timetable: {}, timetableNote: '',
-        meetings: [{ title: '', date: '', time: '', location: '', attendees: '', content: '', recorder: '' }]
-      };
-    }
-
-    function setState(newState) { state = { ...state, ...newState }; render(); }
-    function showToast(msg) { state.toast = msg; render(); setTimeout(() => { state.toast = ''; render(); }, 3000); }
-
-    const styles = {
-      inputP: 'width:100%;padding:12px;border:2px solid #FFD1DC;border-radius:12px;font-size:1rem;background:#FFF9F9;',
-      inputT: 'width:100%;padding:12px;border:2px solid #A8E6E0;border-radius:12px;font-size:1rem;background:#FFF9F0;',
-      label: 'display:block;margin-bottom:6px;font-weight:600;font-size:0.9rem;color:#4A4A6A;'
-    };
-
-    function render() {
-      const root = document.getElementById('root');
-      if (!state.userRole) root.innerHTML = renderRoleSelection();
-      else if (state.userRole === 'teacher' && !state.isAuthenticated) root.innerHTML = renderTeacherLogin();
-      else if (state.userRole === 'parent') root.innerHTML = renderParentVersion();
-      else if (state.userRole === 'teacher') root.innerHTML = renderTeacherVersion();
-      bindEvents();
-    }
-
-    function renderRoleSelection() {
-      return `<div style="font-family:'Noto Sans TC',sans-serif;min-height:100vh;padding:20px;background:linear-gradient(135deg,#667eea 0%,#764ba2 50%,#f093fb 100%);display:flex;align-items:center;justify-content:center;">
-        <div style="background:white;border-radius:30px;padding:40px;box-shadow:0 15px 50px rgba(0,0,0,0.1);max-width:500px;width:100%;">
-          <div style="text-align:center;margin-bottom:40px;">
-            <div style="font-size:4rem;margin-bottom:20px;">📚</div>
-            <h1 style="font-size:2rem;font-weight:800;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">IGP 個別輔導計畫系統</h1>
-            <p style="color:#6B6B8D;margin-top:10px;">資賦優異學生個別輔導計畫填寫平台</p>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:20px;">
-            <button onclick="setState({userRole:'parent',step:0})" style="padding:25px;border:none;border-radius:20px;background:linear-gradient(135deg,#FF9A8B 0%,#FF6B95 100%);color:white;font-size:1.2rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:15px;">
-              <span style="font-size:2rem;">👨‍👩‍👧</span><div style="text-align:left;"><div>我是家長</div><div style="font-size:0.85rem;opacity:0.9;">填寫學生資料</div></div>
-            </button>
-            <button onclick="setState({userRole:'teacher',step:0})" style="padding:25px;border:none;border-radius:20px;background:linear-gradient(135deg,#7ECEC6 0%,#5EBEB6 100%);color:white;font-size:1.2rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:15px;">
-              <span style="font-size:2rem;">👩‍🏫</span><div style="text-align:left;"><div>我是教師</div><div style="font-size:0.85rem;opacity:0.9;">完成 IGP 並匯出</div></div>
-            </button>
-          </div>
+<header>
+  <h1>線上 IGP 生成工具 · 資優特需領綱智慧對應</h1>
+  <p>貼上課程內容 → 自動對應領綱「學習表現／學習內容」→ 產出 docx 格式文字或下載 IGP Word 檔</p>
+</header>
+<div class="privacy">
+  🔒 <b>隱私保護</b>：本工具完全在您的瀏覽器本機運作，<b>不上傳、不連網、不留紀錄</b>。學生個資只留在這台電腦，關閉分頁即消失。可安心分享此檔給同事使用。
+</div>
+<div class="tabs">
+  <button class="tab active" data-tab="match">① 課程 → 領綱查表</button>
+  <button class="tab" data-tab="igp">② 產生 IGP Word</button>
+  <button class="tab" data-tab="browse">③ 領綱瀏覽</button>
+</div>
+<main>
+  <!-- ================= TAB 1: MATCH ================= -->
+  <section class="panel active" id="panel-match">
+    <div class="card">
+      <h2>步驟一：設定領域與年級</h2>
+      <label>學習領域（可複選，課程常見情意＋創造力併課）</label>
+      <div class="chips" id="subjChips"></div>
+      <div class="row" style="margin-top:10px">
+        <div>
+          <label>年級 <span class="stagebadge" id="stageBadge">—</span></label>
+          <select id="gradeSel">
+            <option value="3">三年級</option>
+            <option value="4">四年級</option>
+            <option value="5" selected>五年級</option>
+            <option value="6">六年級</option>
+            <option value="7">七年級（國中）</option>
+            <option value="8">八年級（國中）</option>
+            <option value="9">九年級（國中）</option>
+            <option value="10">高一</option><option value="11">高二</option><option value="12">高三</option>
+          </select>
+          <div class="hint">五年級 → 第三學習階段（Ⅲ）；系統只會在對應領域＋階段中比對。</div>
         </div>
-      </div>`;
-    }
-
-    function renderTeacherLogin() {
-      return `<div style="font-family:'Noto Sans TC',sans-serif;min-height:100vh;padding:20px;background:linear-gradient(135deg,#A8E6E0 0%,#FFF9F0 50%,#FFF8DC 100%);display:flex;align-items:center;justify-content:center;">
-        <div style="background:white;border-radius:30px;padding:40px;box-shadow:0 15px 50px rgba(0,0,0,0.1);max-width:400px;width:100%;">
-          <div style="text-align:center;margin-bottom:30px;"><div style="font-size:4rem;">🔐</div><h1 style="font-size:1.8rem;font-weight:800;color:#7ECEC6;">教師登入</h1></div>
-          <input type="password" id="passwordInput" placeholder="請輸入教師密碼" style="width:100%;padding:15px;border:2px solid #A8E6E0;border-radius:15px;font-size:1rem;margin-bottom:15px;" />
-          <p id="passwordError" style="color:#FF6B6B;text-align:center;margin-bottom:15px;display:none;">密碼錯誤</p>
-          <button onclick="handleLogin()" style="width:100%;padding:15px;border:none;border-radius:15px;background:linear-gradient(135deg,#7ECEC6 0%,#5EBEB6 100%);color:white;font-size:1.1rem;font-weight:700;cursor:pointer;margin-bottom:10px;">登入</button>
-          <button onclick="setState({userRole:null})" style="width:100%;padding:15px;border:2px solid #7ECEC6;border-radius:15px;background:white;color:#7ECEC6;font-size:1rem;font-weight:600;cursor:pointer;">← 返回</button>
+        <div>
+          <label>課程名稱（選填）</label>
+          <input type="text" id="courseName" placeholder="例：科學創造力、全腦開發">
         </div>
-      </div>`;
-    }
-
-    function handleLogin() {
-      const pwd = document.getElementById('passwordInput').value;
-      if (pwd === state.password) { setState({ isAuthenticated: true }); loadSubmissions(); }
-      else document.getElementById('passwordError').style.display = 'block';
-    }
-
-    // ===== 家長版 =====
-    function renderParentVersion() {
-      const steps = ['基本資料', '家庭背景', '興趣評量', '特質評估', '確認繳交'];
-      return `<div style="font-family:'Noto Sans TC',sans-serif;background:linear-gradient(135deg,#FFE4E1 0%,#FFF9F0 50%,#E8F5E9 100%);min-height:100vh;padding:20px;">
-        <header style="background:linear-gradient(135deg,#FF9A8B 0%,#FF6B95 100%);border-radius:20px;padding:20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
-          <h1 style="color:white;font-size:1.4rem;margin:0;">IGP 家長版 👨‍👩‍👧</h1>
-          <button onclick="setState({userRole:null,step:0,submitted:false})" style="padding:8px 16px;border:2px solid white;border-radius:10px;background:transparent;color:white;font-weight:600;cursor:pointer;">← 返回</button>
-        </header>
-        <div style="background:white;border-radius:15px;padding:12px;margin-bottom:20px;display:flex;justify-content:space-between;gap:5px;">
-          ${steps.map((s,i)=>`<div onclick="setState({step:${i}})" style="display:flex;flex-direction:column;align-items:center;cursor:pointer;flex:1;">
-            <div style="width:35px;height:35px;border-radius:50%;background:${state.step===i?'#FF6B95':state.step>i?'#4CAF50':'#FFD1DC'};color:white;display:flex;align-items:center;justify-content:center;font-weight:700;">${state.step>i?'✓':i+1}</div>
-            <span style="font-size:0.65rem;margin-top:4px;color:${state.step===i?'#FF6B95':'#666'};">${s}</span>
-          </div>`).join('')}
-        </div>
-        <div style="background:white;border-radius:20px;padding:25px;margin-bottom:20px;">${renderParentStep()}</div>
-        ${state.step<4&&!state.submitted?`<div style="display:flex;gap:10px;justify-content:center;">
-          ${state.step>0?`<button onclick="setState({step:state.step-1})" style="padding:12px 30px;border:2px solid #FF6B95;border-radius:15px;background:white;color:#FF6B95;font-weight:700;cursor:pointer;">← 上一步</button>`:''}
-          <button onclick="setState({step:state.step+1})" style="padding:12px 30px;border:none;border-radius:15px;background:linear-gradient(135deg,#FF6B95 0%,#FF8E53 100%);color:white;font-weight:700;cursor:pointer;">下一步 →</button>
-        </div>`:''}
-        ${state.toast?`<div style="position:fixed;bottom:20px;right:20px;background:${state.toast.includes('❌')?'#FF6B6B':'#4CAF50'};color:white;padding:15px 25px;border-radius:10px;font-weight:600;z-index:1000;">${state.toast}</div>`:''}
-      </div>`;
-    }
-
-    function renderParentStep() {
-      const f = state.form;
-      switch(state.step) {
-        case 0: return `<h3 style="color:#FF6B95;margin-bottom:15px;">👤 基本資料</h3>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
-            <div><label style="${styles.label}">學生姓名 *</label><input type="text" id="studentName" value="${f.studentName}" style="${styles.inputP}" /></div>
-            <div><label style="${styles.label}">出生日期</label><input type="date" id="birthDate" value="${f.birthDate}" style="${styles.inputP}" /></div>
-            <div><label style="${styles.label}">性別</label><select id="gender" style="${styles.inputP}"><option ${f.gender==='男'?'selected':''}>男</option><option ${f.gender==='女'?'selected':''}>女</option></select></div>
-            <div><label style="${styles.label}">學年度</label><input type="text" id="schoolYear" value="${f.schoolYear}" style="${styles.inputP}" /></div>
-            <div><label style="${styles.label}">學校 *</label><input type="text" id="school" value="${f.school}" style="${styles.inputP}" placeholder="例：同德國小" /></div>
-            <div><label style="${styles.label}">年級</label><select id="grade" style="${styles.inputP}">${[1,2,3,4,5,6].map(g=>`<option ${f.grade==g?'selected':''}>${g}</option>`).join('')}</select></div>
-            <div><label style="${styles.label}">班級</label><input type="text" id="classNumber" value="${f.classNumber}" style="${styles.inputP}" /></div>
-            <div><label style="${styles.label}">導師</label><input type="text" id="homeTeacher" value="${f.homeTeacher}" style="${styles.inputP}" /></div>
-            <div><label style="${styles.label}">E-mail</label><input type="email" id="email" value="${f.email||''}" style="${styles.inputP}" /></div>
-            <div><label style="${styles.label}">住址</label><input type="text" id="address" value="${f.address||''}" style="${styles.inputP}" /></div>
-            <div><label style="${styles.label}">法定代理人 *</label><input type="text" id="guardian" value="${f.guardian}" style="${styles.inputP}" /></div>
-            <div><label style="${styles.label}">代理人關係</label><select id="guardianRelation" style="${styles.inputP}">${['父','母','祖父','祖母','其他'].map(r=>`<option ${f.guardianRelation===r?'selected':''}>${r}</option>`).join('')}</select></div>
-            <div><label style="${styles.label}">代理人電話</label><input type="tel" id="guardianPhone" value="${f.guardianPhone}" style="${styles.inputP}" /></div>
-          </div>`;
-        case 1: return `<h3 style="color:#FF6B95;margin-bottom:15px;">👨‍👩‍👧 家庭狀況</h3>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
-            <div><label style="${styles.label}">實際照顧者</label><select id="actualCaregiver" style="${styles.inputP}">${['父','母','父母','祖父母','其他'].map(c=>`<option ${f.actualCaregiver===c?'selected':''}>${c}</option>`).join('')}</select></div>
-            <div><label style="${styles.label}">家庭經濟狀況</label><select id="economicStatus" style="${styles.inputP}">${['富裕','小康','普通','清寒'].map(e=>`<option ${f.economicStatus===e?'selected':''}>${e}</option>`).join('')}</select></div>
-            <div><label style="${styles.label}">管教態度</label><select id="parentingStyle" style="${styles.inputP}">${['民主式','權威式','放任式','溺愛式'].map(p=>`<option ${f.parentingStyle===p?'selected':''}>${p}</option>`).join('')}</select></div>
-            <div><label style="${styles.label}">與家人互動</label><select id="familyInteraction" style="${styles.inputP}">${['良好','普通','不佳'].map(i=>`<option ${f.familyInteraction===i?'selected':''}>${i}</option>`).join('')}</select></div>
-          </div>
-          <div style="margin-top:15px;"><label style="${styles.label}">對孩子的期望</label><textarea id="parentExpectation" style="${styles.inputP}min-height:80px;">${f.parentExpectation}</textarea></div>`;
-        case 2:
-          const sci=['數學','資訊科技','生活科技','物理','化學','生物','地球科學'];
-          const hum=['國文','英文','歷史','地理','美術','音樂','設計'];
-          const oth=['體育','民俗體育','旅遊','圍棋','樂高','其他'];
-          return `<h3 style="color:#FF6B95;margin-bottom:15px;">📊 興趣分析</h3>
-            <div style="margin-bottom:15px;"><label style="${styles.label}">科學興趣</label><div style="display:flex;flex-wrap:wrap;gap:6px;">${sci.map(item=>`<div onclick="toggleInterest('scienceInterests','${item}')" style="padding:8px 15px;border-radius:15px;cursor:pointer;background:${f.scienceInterests.includes(item)?'#FF6B95':'#FFE4EC'};color:${f.scienceInterests.includes(item)?'white':'#4A4A6A'};">${f.scienceInterests.includes(item)?'✓ ':''}${item}</div>`).join('')}</div></div>
-            <div style="margin-bottom:15px;"><label style="${styles.label}">人文與藝術興趣</label><div style="display:flex;flex-wrap:wrap;gap:6px;">${hum.map(item=>`<div onclick="toggleInterest('humanitiesInterests','${item}')" style="padding:8px 15px;border-radius:15px;cursor:pointer;background:${f.humanitiesInterests.includes(item)?'#FF6B95':'#FFE4EC'};color:${f.humanitiesInterests.includes(item)?'white':'#4A4A6A'};">${f.humanitiesInterests.includes(item)?'✓ ':''}${item}</div>`).join('')}</div></div>
-            <div><label style="${styles.label}">其他</label><div style="display:flex;flex-wrap:wrap;gap:6px;">${oth.map(item=>`<div onclick="toggleInterest('otherInterests','${item}')" style="padding:8px 15px;border-radius:15px;cursor:pointer;background:${f.otherInterests.includes(item)?'#FF6B95':'#FFE4EC'};color:${f.otherInterests.includes(item)?'white':'#4A4A6A'};">${f.otherInterests.includes(item)?'✓ ':''}${item}</div>`).join('')}</div></div>`;
-        case 3:
-          const cog=['觀察能力','記憶能力','理解能力','推理能力','分析能力','應用能力','評鑑能力','創造能力','批判能力','問題解決','後設能力'];
-          const emo=['專注能力','成就動機','要求完美','溝通協調','情緒控制','挫折容忍','正向思考','領導能力','合作能力','自信心','同理心','復原力'];
-          return `<h3 style="color:#FF6B95;margin-bottom:15px;">⭐ 特質評估（1-5分）</h3>
-            <div style="margin-bottom:15px;"><label style="${styles.label}">認知特質</label><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;">${cog.map(item=>`<div style="background:#FFF9F9;padding:6px;border-radius:6px;"><div style="font-size:0.75rem;margin-bottom:4px;">${item}</div><div style="display:flex;gap:2px;">${[1,2,3,4,5].map(n=>`<button onclick="setRating('cognitiveTraits','${item}',${n})" style="width:24px;height:24px;border-radius:4px;border:1px solid #FFD1DC;background:${f.cognitiveTraits[item]===n?'#FF6B95':'white'};color:${f.cognitiveTraits[item]===n?'white':'#4A4A6A'};cursor:pointer;font-size:0.7rem;">${n}</button>`).join('')}</div></div>`).join('')}</div></div>
-            <div><label style="${styles.label}">情意特質</label><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px;">${emo.map(item=>`<div style="background:#FFF9F9;padding:6px;border-radius:6px;"><div style="font-size:0.75rem;margin-bottom:4px;">${item}</div><div style="display:flex;gap:2px;">${[1,2,3,4,5].map(n=>`<button onclick="setRating('emotionalTraits','${item}',${n})" style="width:24px;height:24px;border-radius:4px;border:1px solid #FFD1DC;background:${f.emotionalTraits[item]===n?'#FF6B95':'white'};color:${f.emotionalTraits[item]===n?'white':'#4A4A6A'};cursor:pointer;font-size:0.7rem;">${n}</button>`).join('')}</div></div>`).join('')}</div></div>`;
-        case 4:
-          if(state.submitted) return `<div style="text-align:center;background:#E8F5E9;border-radius:20px;padding:40px;"><div style="font-size:4rem;">🎉</div><h3 style="color:#4CAF50;margin:15px 0;">資料已成功繳交！</h3><button onclick="setState({userRole:null,step:0,submitted:false})" style="margin-top:20px;padding:12px 30px;border:2px solid #4CAF50;border-radius:15px;background:white;color:#4CAF50;font-weight:700;cursor:pointer;">← 返回首頁</button></div>`;
-          return `<div style="text-align:center;"><h3 style="color:#FF6B95;margin-bottom:20px;">✅ 確認繳交</h3>
-            <div style="background:#FFE4EC;border-radius:15px;padding:20px;margin-bottom:20px;text-align:left;">
-              <p><strong>學生：</strong>${f.studentName||'未填'}</p>
-              <p><strong>學校：</strong>${f.school} ${f.grade}年${f.classNumber}班</p>
-              <p><strong>代理人：</strong>${f.guardian||'未填'}</p>
-            </div>
-            <button onclick="submitToFirebase()" ${state.submitting?'disabled':''} style="padding:18px 50px;border:none;border-radius:20px;background:${state.submitting?'#ccc':'linear-gradient(135deg,#4CAF50 0%,#45a049 100%)'};color:white;font-size:1.2rem;font-weight:700;cursor:pointer;">${state.submitting?'⏳ 繳交中...':'📤 確認繳交'}</button>
-          </div>`;
-      }
-    }
-
-    function toggleInterest(field, item) {
-      const curr = state.form[field] || [];
-      state.form[field] = curr.includes(item) ? curr.filter(i=>i!==item) : [...curr,item];
-      render();
-    }
-
-    function setRating(cat, item, val) {
-      state.form[cat] = { ...state.form[cat], [item]: val };
-      render();
-    }
-
-    async function submitToFirebase() {
-      saveFormData();
-      const f = state.form;
-      if(!f.studentName||!f.school||!f.guardian) { showToast('❌ 請填寫必要欄位'); return; }
-      state.submitting = true; render();
-      try {
-        const key = `${f.school}_${f.grade}_${f.classNumber}_${f.studentName}`.replace(/[.#$\/\[\]]/g,'_');
-        await db.ref('submissions/'+key).set({...f, submittedAt: new Date().toISOString(), status:'pending'});
-        state.submitted = true;
-        showToast('✅ 資料已成功繳交！');
-      } catch(e) { showToast('❌ 繳交失敗'); }
-      state.submitting = false; render();
-    }
-
-    // ===== 教師版 =====
-    function renderTeacherVersion() {
-      const steps = ['學生列表','基本資料','優弱勢','課程計畫','課表','會議','匯出'];
-      return `<div style="font-family:'Noto Sans TC',sans-serif;background:linear-gradient(135deg,#A8E6E0 0%,#FFF9F0 50%,#FFF8DC 100%);min-height:100vh;padding:20px;">
-        <header style="background:#9B8AC4;border-radius:20px;padding:20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
-          <h1 style="color:white;font-size:1.4rem;margin:0;">IGP 教師版 👩‍🏫</h1>
-          <button onclick="setState({userRole:null,isAuthenticated:false,step:0,selectedStudent:null})" style="padding:8px 16px;border:2px solid white;border-radius:10px;background:transparent;color:white;font-weight:600;cursor:pointer;">← 登出</button>
-        </header>
-        <div style="background:white;border-radius:15px;padding:10px;margin-bottom:20px;overflow-x:auto;">
-          <div style="display:flex;justify-content:space-between;min-width:500px;gap:3px;">
-            ${steps.map((s,i)=>`<div onclick="${i===0||state.selectedStudent?`setState({step:${i}})`:''}" style="display:flex;flex-direction:column;align-items:center;cursor:${i===0||state.selectedStudent?'pointer':'not-allowed'};flex:1;opacity:${i>0&&!state.selectedStudent?0.5:1};"><div style="width:30px;height:30px;border-radius:50%;background:${state.step===i?'#9B8AC4':state.step>i?'#7ECEC6':'#A8E6E0'};color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.7rem;">${state.step>i?'✓':i+1}</div><span style="font-size:0.55rem;margin-top:3px;color:${state.step===i?'#9B8AC4':'#666'};">${s}</span></div>`).join('')}
-          </div>
-        </div>
-        <div style="background:white;border-radius:20px;padding:25px;margin-bottom:20px;">${renderTeacherStep()}</div>
-        ${state.step>0&&state.selectedStudent?`<div style="display:flex;gap:10px;justify-content:center;">
-          <button onclick="setState({step:state.step-1})" style="padding:12px 30px;border:2px solid #9B8AC4;border-radius:15px;background:white;color:#9B8AC4;font-weight:700;cursor:pointer;">← 上一步</button>
-          ${state.step<6?`<button onclick="setState({step:state.step+1})" style="padding:12px 30px;border:none;border-radius:15px;background:linear-gradient(135deg,#9B8AC4 0%,#7B6BA4 100%);color:white;font-weight:700;cursor:pointer;">下一步 →</button>`:''}
-        </div>`:''}
-        ${state.toast?`<div style="position:fixed;bottom:20px;right:20px;background:${state.toast.includes('❌')?'#FF6B6B':'#7ECEC6'};color:white;padding:15px 25px;border-radius:10px;font-weight:600;z-index:1000;">${state.toast}</div>`:''}
-      </div>`;
-    }
-
-    function renderTeacherStep() {
-      const f = state.form;
-      switch(state.step) {
-        case 0: return renderStudentList();
-        case 1: return `<h3 style="color:#9B8AC4;margin-bottom:15px;">👤 基本資料</h3>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
-            <div><label style="${styles.label}">學生姓名</label><input type="text" value="${f.studentName}" style="${styles.inputT}" readonly /></div>
-            <div><label style="${styles.label}">鑑定文號</label><input type="text" id="identificationNumber" value="${f.identificationNumber||''}" style="${styles.inputT}" placeholder="113年4月22日府教特字第..." /></div>
-            <div><label style="${styles.label}">學校/班級</label><input type="text" value="${f.school} ${f.grade}年${f.classNumber}班" style="${styles.inputT}" readonly /></div>
-            <div><label style="${styles.label}">原班導師</label><input type="text" id="homeTeacher" value="${f.homeTeacher||''}" style="${styles.inputT}" /></div>
-            <div><label style="${styles.label}">個管教師</label><input type="text" id="caseTeacher" value="${f.caseTeacher||''}" style="${styles.inputT}" /></div>
-            <div><label style="${styles.label}">教育階段</label><select id="educationStage" style="${styles.inputT}">${['國小','國中'].map(s=>`<option ${f.educationStage===s?'selected':''}>${s}</option>`).join('')}</select></div>
-            <div><label style="${styles.label}">資優類別</label><select id="giftedType" style="${styles.inputT}">${['創造能力','一般智能','學術性向','藝術才能','領導才能'].map(t=>`<option ${f.giftedType===t?'selected':''}>${t}</option>`).join('')}</select></div>
-            <div><label style="${styles.label}">安置方式</label><select id="placementType" style="${styles.inputT}">${['分散式資源班','集中式特教班','巡迴輔導','資優教育方案'].map(p=>`<option ${f.placementType===p?'selected':''}>${p}</option>`).join('')}</select></div>
-          </div>`;
-        case 2:
-          const traits=['①觀察能力','②記憶能力','③理解能力','④推理能力','⑤分析能力','⑥應用能力','⑦評鑑能力','⑧創造能力','⑨批判能力','⑩問題解決','⑪後設能力','⑬專注能力','⑭成就動機','⑮要求完美','⑯溝通協調','⑰情緒控制','⑱挫折容忍','⑲正向思考','⑳領導能力','㉑合作能力','㉒自信心','㉓同理心','㉔復原力','㉖數學','㉗物理','㉘生物','㉙化學','㉚地科','㉛國文','㉜英文','㉝歷史','㉞地理','㉟公民','㊱資訊','㊲生科'];
-          return `<h3 style="color:#9B8AC4;margin-bottom:15px;">⚖️ 優弱勢能力評析</h3>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:15px;">
-              <div><label style="${styles.label}">填寫日期</label><input type="text" id="analysisDate" value="${f.analysisDate||''}" style="${styles.inputT}" placeholder="114/8/30" /></div>
-              <div><label style="${styles.label}">填寫者</label><input type="text" id="analysisWriter" value="${f.analysisWriter||''}" style="${styles.inputT}" placeholder="劉力瑄(教師)" /></div>
-            </div>
-            <p style="margin-bottom:10px;font-size:0.85rem;"><span style="color:#7ECEC6;">■綠=優勢</span> | <span style="color:#E8A5A5;">■粉=弱勢</span></p>
-            <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:15px;">
-              ${traits.map(t=>`<div style="display:flex;gap:1px;"><div onclick="toggleTrait('strengths','${t}')" style="padding:3px 5px;border-radius:6px;cursor:pointer;font-size:0.6rem;background:${(f.strengths||[]).includes(t)?'#7ECEC6':'#F5E6B8'};color:${(f.strengths||[]).includes(t)?'white':'#4A4A6A'};">${t}↑</div><div onclick="toggleTrait('weaknesses','${t}')" style="padding:3px 5px;border-radius:6px;cursor:pointer;font-size:0.6rem;background:${(f.weaknesses||[]).includes(t)?'#F5C4C4':'#F5E6B8'};color:${(f.weaknesses||[]).includes(t)?'white':'#4A4A6A'};">↓</div></div>`).join('')}
-            </div>
-            <div><label style="${styles.label}">優弱勢能力綜合評析（質性描述）</label><textarea id="analysisDescription" style="${styles.inputT}min-height:150px;">${f.analysisDescription||''}</textarea></div>`;
-        case 3: return renderCurriculum();
-        case 4: return renderTimetable();
-        case 5: return renderMeetings();
-        case 6: return renderExport();
-      }
-    }
-
-    function toggleTrait(field, trait) {
-      const curr = state.form[field] || [];
-      state.form[field] = curr.includes(trait) ? curr.filter(t=>t!==trait) : [...curr,trait];
-      render();
-    }
-
-    function loadSubmissions() {
-      db.ref('submissions').on('value', snapshot => {
-        const data = snapshot.val();
-        state.submissions = data ? Object.entries(data).map(([key,value])=>({key,...value})).sort((a,b)=>new Date(b.submittedAt)-new Date(a.submittedAt)) : [];
-        state.loading = false;
-        render();
-      });
-    }
-
-    function renderStudentList() {
-      if(state.loading) return `<div style="text-align:center;padding:40px;"><div style="font-size:2rem;">⏳</div><p>載入中...</p></div>`;
-      if(state.submissions.length===0) return `<div style="text-align:center;padding:40px;"><div style="font-size:3rem;">📭</div><p>目前沒有家長繳交的資料</p></div>`;
-      return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
-        <h3 style="color:#9B8AC4;margin:0;">📋 已繳交學生（${state.submissions.length}筆）</h3>
-        <button onclick="window.location.reload()" style="padding:8px 15px;border:none;border-radius:10px;background:#7ECEC6;color:white;cursor:pointer;">🔄 重新整理</button>
       </div>
-      ${state.submissions.map((sub,i)=>`<div onclick="selectStudent(${i})" style="background:white;border-radius:15px;padding:15px;margin-bottom:10px;border:2px solid #A8E6E0;cursor:pointer;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div><div style="font-weight:700;">${sub.studentName}</div><div style="color:#666;font-size:0.85rem;">${sub.school} ${sub.grade}年${sub.classNumber}班</div></div>
-          <div style="text-align:right;"><div style="padding:4px 10px;border-radius:10px;font-size:0.75rem;background:#FFF3E0;color:#FF9800;">待處理</div></div>
+    </div>
+
+    <div class="card">
+      <h2>步驟二：貼上課程內容</h2>
+      <label>課程內容 / 學年學習重點 / 單元活動描述（越具體，比對越準）</label>
+      <textarea id="courseText" placeholder="例：
+1.認識創造力與自我特質：透過創意自我介紹與活動探索自我特質與潛能。
+2.運用曼陀羅思考法、腦力激盪等技巧，針對生活問題提出多樣創意方案。
+3.勇於嘗試新穎、不尋常的表達方式，並從失敗中發現創造的價值。
+4.透過設計任務清楚傳達創意概念，並上台分享與反思。"></textarea>
+      <div class="flex-between" style="margin-top:12px">
+        <button class="act" id="btnMatch">🔍 智慧比對領綱</button>
+        <div class="small">比對在本機完成（不連網）。可另於下方勾選增減。</div>
+      </div>
+    </div>
+
+    <div class="card" id="resultCard" style="display:none">
+      <div class="flex-between">
+        <h2 style="margin:0">步驟三：確認對應條目（已自動勾選建議項目，可自行增減）</h2>
+        <div>
+          <button class="ghost" id="btnAll">顯示全部候選</button>
+          <button class="ghost" id="btnClear">清除勾選</button>
         </div>
-      </div>`).join('')}`;
-    }
+      </div>
+      <div class="results" style="margin-top:12px">
+        <div class="listbox" id="perfList"><div class="listhead">學習表現</div></div>
+        <div class="listbox" id="contList"><div class="listhead">學習內容</div></div>
+      </div>
+    </div>
 
-    function selectStudent(index) {
-      const student = state.submissions[index];
-      state.form = { ...getDefaultForm(), ...student };
-      state.selectedStudent = student;
-      state.step = 1;
-      showToast(`✅ 已載入 ${student.studentName} 的資料`);
-    }
+    <div class="card" id="outCard" style="display:none">
+      <div class="flex-between">
+        <h2 style="margin:0">步驟四：領綱學習重點（比照課程計畫格式）</h2>
+        <button class="act" id="btnCopy">📋 複製</button>
+      </div>
+      <div class="hint">格式與「創資_115學年度課程計畫」的「領綱學習重點」欄一致，可直接貼回課程計畫表格。</div>
+      <div class="out" id="outBox" style="margin-top:10px"></div>
+    </div>
+  </section>
 
-    function renderCurriculum() {
-      const f = state.form;
-      const domains = ['領導才能(融合創造力)','專長領域(融合創造力)','創造力領域(融合獨立研究)','情意','創造能力','領導才能','獨立研究','情意發展','專長領域'];
-      return `<h3 style="color:#9B8AC4;margin-bottom:15px;">📚 教育目標與輔導重點</h3>
-        ${(f.courses||[]).map((c,i)=>`<div style="background:#FFF9F0;border-radius:10px;padding:15px;margin-bottom:15px;border:2px solid #A8E6E0;position:relative;">
-          ${i>0?`<button onclick="removeCourse(${i})" style="position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;border:none;background:#F5C4C4;color:white;cursor:pointer;">×</button>`:''}
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px;">
-            <div><label style="${styles.label}">學習領域</label><select id="course_domain_${i}" style="${styles.inputT}">${domains.map(d=>`<option ${c.domain===d?'selected':''}>${d}</option>`).join('')}</select></div>
-            <div><label style="${styles.label}">課程名稱</label><input type="text" id="course_name_${i}" value="${c.courseName||''}" style="${styles.inputT}" /></div>
-            <div><label style="${styles.label}">授課教師</label><input type="text" id="course_teacher_${i}" value="${c.teacher||''}" style="${styles.inputT}" /></div>
-          </div>
-          <div><label style="${styles.label}">學年/學期目標</label><textarea id="course_goals_${i}" style="${styles.inputT}min-height:100px;">${c.goals||''}</textarea></div>
-        </div>`).join('')}
-        <button onclick="addCourse()" style="width:100%;padding:10px;border:2px dashed #7ECEC6;border-radius:10px;background:transparent;color:#7ECEC6;font-weight:700;cursor:pointer;">+ 新增課程</button>`;
-    }
+  <!-- ================= TAB 2: IGP ================= -->
+  <section class="panel" id="panel-igp">
+    <div class="card">
+      <h2>匯入家長 Google 表單（Excel）</h2>
+      <div class="hint">選擇家長填寫的 Google 表單下載檔（.xlsx），自動帶入學生基本資料、家庭背景、興趣與得獎等個資欄位。<b>檔案只在本機讀取，不上傳。</b></div>
+      <div class="row" style="margin-top:8px; align-items:flex-end">
+        <div><label>Excel 檔（.xlsx）</label><input type="file" id="xlsxFile" accept=".xlsx"></div>
+        <div><label>選擇學生（依姓名）</label><select id="xlsxStudent"><option value="">— 尚未匯入 —</option></select></div>
+        <div style="flex:0 0 auto"><button class="ghost" id="btnFill">帶入資料</button></div>
+      </div>
+      <div class="small" id="xlsxInfo" style="margin-top:8px"></div>
+    </div>
 
-    function addCourse() { saveFormData(); state.form.courses=[...(state.form.courses||[]),{domain:'創造能力',courseName:'',teacher:'',goals:''}]; render(); }
-    function removeCourse(i) { saveFormData(); state.form.courses=state.form.courses.filter((_,idx)=>idx!==i); render(); }
+    <div class="card">
+      <h2>學生基本資料</h2>
+      <div class="row">
+        <div><label>學生姓名</label><input type="text" id="f_name" placeholder="○○○"></div>
+        <div><label>教育階段</label>
+          <select id="f_stageedu"><option>國小</option><option>國中</option><option>高中</option></select></div>
+        <div><label>資優類別</label>
+          <select id="f_gift"><option>創造能力</option><option>一般智能</option><option>學術性向</option><option>藝術才能</option><option>領導能力</option><option>其他特殊才能</option></select></div>
+        <div><label>安置方式</label>
+          <select id="f_place"><option>分散式資源班</option><option>集中式特教班</option><option>巡迴輔導</option><option>特殊教育方案</option></select></div>
+      </div>
+      <div class="row">
+        <div><label>學年度</label><input type="text" id="f_year" placeholder="114"></div>
+        <div><label>就讀學校</label><input type="text" id="f_school" placeholder="○○國小"></div>
+        <div><label>年級／班別</label><input type="text" id="f_class" placeholder="402"></div>
+        <div><label>原班導師</label><input type="text" id="f_teacher" placeholder="○○○"></div>
+        <div><label>個管教師</label><input type="text" id="f_mgr" placeholder="○○○"></div>
+      </div>
+    </div>
 
-    function renderTimetable() {
-      const days=['一','二','三','四','五'];
-      const periods=['早自習','1','2','3','4','午休','5','6','7'];
-      const tt=state.form.timetable||{};
-      return `<h3 style="color:#9B8AC4;margin-bottom:15px;">📅 課表</h3>
-        <div style="overflow-x:auto;"><table style="width:100%;border-collapse:separate;border-spacing:2px;min-width:400px;">
-          <thead><tr><th style="background:#9B8AC4;color:white;padding:6px;border-radius:4px;font-size:0.75rem;">節次</th>${days.map(d=>`<th style="background:#9B8AC4;color:white;padding:6px;border-radius:4px;font-size:0.75rem;">週${d}</th>`).join('')}</tr></thead>
-          <tbody>${periods.map(p=>`<tr><td style="background:#7ECEC6;color:white;padding:4px;border-radius:4px;text-align:center;font-size:0.7rem;">${p}</td>${days.map(d=>{const key=`${d}-${p}`;const val=tt[key]||'';return`<td style="background:${val?'#F5E6B8':'#FFF9F0'};padding:3px;border-radius:4px;"><input type="text" id="tt_${key}" value="${val}" style="width:100%;padding:4px;border:1px solid #ddd;border-radius:3px;text-align:center;font-size:0.65rem;" /></td>`;}).join('')}</tr>`).join('')}</tbody>
-        </table></div>
-        <div style="margin-top:15px;"><label style="${styles.label}">課程安排說明（每行一門課：課程名稱 抽離/外加 節數）</label><textarea id="timetableNote" style="${styles.inputT}min-height:80px;" placeholder="【專長領域】專長探索(程式/積木) 外加1(早自習1) 1&#10;【情意領域】創意人特質 外加1(早自習1) 1&#10;【創造力領域】DFC創意挑戰 外加4(周五下午4) 4">${state.form.timetableNote||''}</textarea></div>`;
-    }
+    <div class="card">
+      <h2>三、優弱勢能力評析</h2>
+      <div class="hint">匯入 Excel 後會依家長評定（5 分→優勢、≤2 分→弱勢）自動建議代號，可自行增減。</div>
+      <div class="row" style="margin-top:8px">
+        <div style="flex:0 0 120px"><label>年級</label><input type="text" id="gz_grade" placeholder="五"></div>
+        <div style="flex:0 0 160px"><label>填寫日期</label><input type="text" id="gz_date" placeholder="114/8/30"></div>
+        <div><label>填寫者</label><input type="text" id="gz_writer" placeholder="○○○(教師)"></div>
+      </div>
+      <div id="gzGrid" style="margin-top:10px"></div>
+      <label style="margin-top:10px">優弱勢能力綜合評析（質性描述）</label>
+      <textarea id="gz_desc" style="min-height:90px" placeholder="可按下方按鈕產生提示詞，貼到 AI 生成後貼回此處。"></textarea>
+      <div style="margin-top:8px"><button class="ghost" id="btnGzPrompt">📋 複製「質性描述」提示詞</button>
+        <span class="small" id="gzPromptInfo"></span></div>
+    </div>
 
-    function renderMeetings() {
-      const f=state.form;
-      return `<h3 style="color:#9B8AC4;margin-bottom:15px;">📝 會議紀錄</h3>
-        ${(f.meetings||[]).map((m,i)=>`<div style="background:#FFF9F0;border-radius:10px;padding:15px;margin-bottom:10px;border:2px solid #A8E6E0;position:relative;">
-          ${i>0?`<button onclick="removeMeeting(${i})" style="position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;border:none;background:#F5C4C4;color:white;cursor:pointer;">×</button>`:''}
-          <div style="margin-bottom:10px;"><label style="${styles.label}">會議標題</label><input type="text" id="meeting_title_${i}" value="${m.title||''}" style="${styles.inputT}" placeholder="114學年度第一學期 IGP 期初會議" /></div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;">
-            <div><label style="${styles.label}">日期</label><input type="text" id="meeting_date_${i}" value="${m.date||''}" style="${styles.inputT}" placeholder="114/8/5" /></div>
-            <div><label style="${styles.label}">時間</label><input type="text" id="meeting_time_${i}" value="${m.time||''}" style="${styles.inputT}" placeholder="13:00-13:30" /></div>
-            <div><label style="${styles.label}">地點</label><input type="text" id="meeting_location_${i}" value="${m.location||''}" style="${styles.inputT}" placeholder="資優班教室" /></div>
-            <div><label style="${styles.label}">記錄者</label><input type="text" id="meeting_recorder_${i}" value="${m.recorder||''}" style="${styles.inputT}" /></div>
-          </div>
-          <div style="margin-top:10px;"><label style="${styles.label}">與會人員（每行一人）</label><textarea id="meeting_attendees_${i}" style="${styles.inputT}min-height:80px;" placeholder="資優班導師 劉力瑄&#10;資優班教師 高明聖&#10;普通班導師 洪淑卿&#10;家長 林尹雯&#10;學生 李想&#10;行政代表 特教組長 鄭麗美">${m.attendees||''}</textarea></div>
-          <div style="margin-top:10px;"><label style="${styles.label}">會議紀錄</label><textarea id="meeting_content_${i}" style="${styles.inputT}min-height:120px;">${m.content||''}</textarea></div>
-        </div>`).join('')}
-        <button onclick="addMeeting()" style="width:100%;padding:10px;border:2px dashed #7ECEC6;border-radius:10px;background:transparent;color:#7ECEC6;font-weight:700;cursor:pointer;">+ 新增會議</button>`;
-    }
+    <div class="card">
+      <h2>課程查表（依年級帶入課程計畫）</h2>
+      <div class="hint">輸入學生年級，列出課程計畫中該年級的課程；勾選後帶入下方「課程區塊」，並自動附上對應領綱學習表現。</div>
+      <div class="row" style="margin-top:8px; align-items:flex-end">
+        <div style="flex:0 0 140px"><label>年級</label>
+          <select id="catGrade"><option value="3">三年級</option><option value="4">四年級</option><option value="5" selected>五年級</option><option value="6">六年級</option></select></div>
+        <div style="flex:0 0 auto"><button class="ghost" id="btnCatFill">帶入所選課程</button></div>
+      </div>
+      <div id="catList" style="margin-top:10px"></div>
+    </div>
 
-    function addMeeting() { saveFormData(); state.form.meetings=[...(state.form.meetings||[]),{title:'',date:'',time:'',location:'',attendees:'',content:'',recorder:''}]; render(); }
-    function removeMeeting(i) { saveFormData(); state.form.meetings=state.form.meetings.filter((_,idx)=>idx!==i); render(); }
+    <div class="card">
+      <div class="flex-between">
+        <h2 style="margin:0">教育目標與輔導重點（課程區塊）</h2>
+        <button class="ghost" id="btnAddCourse">＋ 新增課程區塊</button>
+      </div>
+      <div class="hint">每個課程一個區塊，可從「① 課程→領綱查表」把選好的學習表現帶入此處暫存。<b>（註：此區塊自動寫入 Word 範本為下一版功能；目前 Word 的課程頁維持範本空白格式。）</b></div>
+      <div id="courseBlocks" style="margin-top:12px"></div>
+    </div>
 
-    function renderExport() {
-      const f=state.form;
-      return `<div style="text-align:center;">
-        <h3 style="color:#9B8AC4;margin-bottom:20px;">📄 匯出 Word 文件</h3>
-        <div style="background:#F5E6B8;border-radius:15px;padding:20px;margin-bottom:20px;text-align:left;">
-          <p><strong>學生：</strong>${f.studentName}（${f.school} ${f.grade}年${f.classNumber}班）</p>
-          <p><strong>個管教師：</strong>${f.caseTeacher||'未填'}</p>
-          <p><strong>課程數量：</strong>${(f.courses||[]).filter(c=>c.courseName).length} 門</p>
-          <p><strong>會議次數：</strong>${(f.meetings||[]).filter(m=>m.date).length} 次</p>
-        </div>
-        <button onclick="exportWord()" style="padding:18px 50px;border:none;border-radius:20px;background:linear-gradient(135deg,#7ECEC6 0%,#5EBEB6 100%);color:white;font-size:1.2rem;font-weight:700;cursor:pointer;">📄 下載 Word（與PDF格式100%相同）</button>
-        <p style="margin-top:10px;color:#666;font-size:0.85rem;">標楷體・無顏色・完全複製PDF格式</p>
-      </div>`;
-    }
+    <div class="card">
+      <div class="flex-between">
+        <h2 style="margin:0">產生 Word 檔</h2>
+        <button class="act" id="btnDocx">⬇ 下載 IGP（.docx）</button>
+      </div>
+      <div class="hint">以你的 <b>113 IGP 範本</b>為底產生完整 Word（標楷體、無底色、表格尺寸間距與範本一致）。目前自動填入：封面、學年學期表、<b>一、基本資料與家庭背景</b>（可由上方 Excel 匯入）。其餘欄位維持範本空白格式，可於 Word 內續填。<br>※「教育目標與輔導重點」的學習表現自動填入為下一版功能。</div>
+    </div>
+  </section>
 
-    // ===== Word 匯出（完全複製PDF格式）=====
-    async function exportWord() {
-      saveFormData();
-      const f = state.form;
-      const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, BorderStyle, WidthType, AlignmentType, VerticalAlign, PageBreak } = docx;
-      
-      const FONT = "標楷體";
-      const border = { style: BorderStyle.SINGLE, size: 4, color: "000000" };
-      const borders = { top: border, bottom: border, left: border, right: border };
-      
-      // 建立儲存格（無顏色）
-      const cell = (text, width, opts = {}) => new TableCell({
-        borders,
-        width: { size: width, type: WidthType.DXA },
-        verticalAlign: VerticalAlign.CENTER,
-        columnSpan: opts.span || 1,
-        rowSpan: opts.rowSpan || 1,
-        children: [new Paragraph({
-          alignment: opts.align || AlignmentType.CENTER,
-          spacing: { before: 60, after: 60 },
-          children: [new TextRun({ text: text || '', font: FONT, size: opts.size || 24 })]
-        })]
-      });
+  <!-- ================= TAB 3: BROWSE ================= -->
+  <section class="panel" id="panel-browse">
+    <div class="card">
+      <h2>領綱瀏覽 / 查詢</h2>
+      <div class="row">
+        <div><label>領域</label><select id="b_subj"></select></div>
+        <div><label>學習階段</label><select id="b_stage"></select></div>
+        <div><label>關鍵字（選填）</label><input type="text" id="b_kw" placeholder="輸入關鍵字過濾"></div>
+      </div>
+      <div class="out" id="browseOut" style="margin-top:12px; max-height:520px"></div>
+    </div>
+  </section>
+</main>
 
-      // 多行儲存格
-      const cellLines = (lines, width, opts = {}) => new TableCell({
-        borders,
-        width: { size: width, type: WidthType.DXA },
-        verticalAlign: VerticalAlign.TOP,
-        columnSpan: opts.span || 1,
-        rowSpan: opts.rowSpan || 1,
-        children: (Array.isArray(lines) ? lines : [lines]).map(line => new Paragraph({
-          alignment: opts.align || AlignmentType.LEFT,
-          spacing: { before: 40, after: 40 },
-          children: [new TextRun({ text: line || '', font: FONT, size: opts.size || 24 })]
-        }))
-      });
-
-      const sections = [];
-
-      // ===== 第1頁：封面（與PDF第1頁完全相同）=====
-      sections.push(
-        new Paragraph({
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 400 },
-          children: [new TextRun({ text: `桃園市資賦優異學生 ${f.studentName} 個別輔導計畫（IGP）`, font: FONT, size: 36, bold: true })]
-        }),
-        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: `教育階段：■${f.educationStage||'國小'}`, font: FONT, size: 24 })] }),
-        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: `資優類別：■${f.giftedType||'創造能力'}`, font: FONT, size: 24 })] }),
-        new Paragraph({ spacing: { after: 300 }, children: [new TextRun({ text: `安置方式：■${f.placementType||'分散式資源班'}`, font: FONT, size: 24 })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [
-              cell('學年+學期', 1400), cell('就讀學校', 1400), cell('年級/班別', 1400),
-              cell('原班導師', 1400), cell('個管教師', 1400), cell('家長簽名', 1400), cell('學生簽名', 1400),
-            ]}),
-            new TableRow({ children: [
-              cell(`${f.schoolYear}學年度\n${f.semester}`, 1400), cell(f.school, 1400), cell(`${f.grade}年${f.classNumber}班`, 1400),
-              cell(f.homeTeacher, 1400), cell(f.caseTeacher, 1400), cell('', 1400), cell('', 1400),
-            ]}),
-          ]
-        }),
-        new Paragraph({ children: [new PageBreak()] })
-      );
-
-      // ===== 第2頁：一、基本資料與家庭背景（與PDF第2頁完全相同）=====
-      sections.push(
-        new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: '一、基本資料與家庭背景', font: FONT, size: 28, bold: true })] }),
-        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '（一）基本資料', font: FONT, size: 24 })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [
-              cell('學生姓名', 1400), cell(f.studentName, 1800),
-              cell('出生日期', 1400), cell(f.birthDate, 1800),
-              cell('性別', 800), cell(f.gender, 800),
-            ]}),
-            new TableRow({ children: [
-              cell('鑑定文號', 1400), cellLines([f.identificationNumber || ''], 4600, { span: 3 }),
-              cell('學生\nE-mail', 1000), cell(f.email || '', 1600),
-            ]}),
-            new TableRow({ children: [
-              cell('住家電話', 1400), cell(f.homePhone || '', 1800),
-              cell('住　址', 1400), cellLines([f.address || ''], 4400, { span: 3 }),
-            ]}),
-            new TableRow({ children: [
-              cell('法定代理人', 1400), cell(f.guardian, 1800),
-              cell('法定代理人\n聯絡電話', 1600), cell(f.guardianPhone, 4200, { span: 3 }),
-            ]}),
-          ]
-        }),
-        new Paragraph({ spacing: { before: 200, after: 100 }, children: [new TextRun({ text: '（二）家庭成員（已就業者請填服務機關，就學者請填就讀學校）', font: FONT, size: 24 })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [
-              cell('稱謂', 1000), cell('姓名', 1600), cell('畢業科系', 1400),
-              cell('專長', 1600), cell('聯絡電話', 1800), cell('服務機關/就讀學校', 2600),
-            ]}),
-            new TableRow({ children: [
-              cell(f.guardianRelation, 1000), cell(f.guardian, 1600), cell('', 1400),
-              cell('', 1600), cell(f.guardianPhone, 1800), cell('', 2600),
-            ]}),
-          ]
-        }),
-        new Paragraph({ spacing: { before: 200, after: 100 }, children: [new TextRun({ text: '（三）家庭狀況', font: FONT, size: 24 })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [
-              cell('實際照顧者', 2500), cell(f.actualCaregiver, 2500),
-              cell('家庭經濟狀況', 2500), cell(f.economicStatus, 2500),
-            ]}),
-            new TableRow({ children: [
-              cell('實際照顧者\n管教態度', 2500), cell(f.parentingStyle, 2500),
-              cell('與家人互動情形', 2500), cell(f.familyInteraction, 2500),
-            ]}),
-            new TableRow({ children: [
-              cell('對孩子的期望', 2500), cellLines([f.parentExpectation || ''], 7500, { span: 3 }),
-            ]}),
-          ]
-        }),
-        new Paragraph({ children: [new PageBreak()] })
-      );
-
-      // ===== 第3頁：（四）教育轉銜紀錄（與PDF第3頁完全相同）=====
-      sections.push(
-        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '（四）教育轉銜紀錄', font: FONT, size: 24 })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [
-              cell('階段', 1200), cell('校名', 1400), cell('班級', 1200),
-              cell('普通班導師', 1400), cell('資優教育\n個管教師', 1400), cell('服務類型（可複選）', 3400),
-            ]}),
-            new TableRow({ children: [
-              cell('國小\n3-4年級', 1200), cell(f.school, 1400), cell(`${f.grade}年${f.classNumber}班`, 1200),
-              cell(f.homeTeacher, 1400), cell(f.caseTeacher, 1400),
-              cellLines(['□縮短修業年限', '■資優資源班', '□資優教育方案', '　□校本□區域', '□巡迴輔導', '　□身障□資優', '□身心障礙資源班', '□其他（請說明）'], 3400, { size: 20 }),
-            ]}),
-            new TableRow({ children: [
-              cell('國小\n5-6年級', 1200), cell('', 1400), cell('', 1200), cell('', 1400), cell('', 1400),
-              cellLines(['□縮短修業年限', '□資優資源班', '□資優教育方案', '　□校本□區域', '□巡迴輔導', '　□身障□資優', '□身心障礙資源班', '□其他（請說明）'], 3400, { size: 20 }),
-            ]}),
-            new TableRow({ children: [
-              cell('國中', 1200), cell('', 1400), cell('', 1200), cell('', 1400), cell('', 1400),
-              cellLines(['□縮短修業年限', '□資優資源班', '□資優教育方案', '　□校本□區域', '□巡迴輔導', '　□身障□資優', '□身心障礙資源班', '□其他（請說明）'], 3400, { size: 20 }),
-            ]}),
-          ]
-        }),
-        new Paragraph({ children: [new PageBreak()] })
-      );
-
-      // ===== 第4頁：二、鑑定評量與表現記錄（與PDF第4頁完全相同）=====
-      sections.push(
-        new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: '二、鑑定評量與表現記錄', font: FONT, size: 28, bold: true })] }),
-        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '（一）鑑定資料（依據鑑定結果通知書）', font: FONT, size: 24 })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [
-              cell('評量工具名稱', 4000), cell('施測日期', 2000),
-              cell('評量結果（擇一填寫）', 4000, { span: 2 }),
-            ]}),
-            new TableRow({ children: [
-              cell('', 4000), cell('', 2000), cell('標準分數', 2000), cell('百分等級', 2000),
-            ]}),
-            new TableRow({ children: [ cell('', 4000), cell('', 2000), cell('', 2000), cell('', 2000) ]}),
-          ]
-        }),
-        new Paragraph({ spacing: { before: 50, after: 150 }, children: [new TextRun({ text: '※評量工具名稱欄位:一般智能資優測驗，僅需填寫「團體/個別智力測驗」。', font: FONT, size: 20 })] }),
-        new Paragraph({ spacing: { before: 100, after: 100 }, children: [new TextRun({ text: '（二）生涯、興趣與其他測驗/量表', font: FONT, size: 24 })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [ cell('測驗名稱', 4000), cell('測驗日期', 2000), cell('評量結果', 4000) ]}),
-            new TableRow({ children: [ cell('', 4000), cell('', 2000), cell('', 4000) ]}),
-          ]
-        }),
-        new Paragraph({ children: [new PageBreak()] })
-      );
-
-      // ===== 第5頁：興趣分析與得獎紀錄（與PDF第5頁完全相同）=====
-      sections.push(
-        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '（三）興趣分析（可複選）', font: FONT, size: 24 })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [ cell('科學興趣', 3300), cell('人文與藝術興趣', 3400), cell('其他', 3300) ]}),
-            new TableRow({ children: [
-              cellLines(['□ ' + (f.scienceInterests||[]).join(', ')], 3300),
-              cellLines(['□ ' + (f.humanitiesInterests||[]).join(', ')], 3400),
-              cellLines(['□ ' + (f.otherInterests||[]).join(', ')], 3300),
-            ]}),
-          ]
-        }),
-        new Paragraph({ spacing: { before: 200, after: 100 }, children: [new TextRun({ text: '（四）得獎紀錄（檢附相關學科競賽得獎資料）', font: FONT, size: 24 })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [
-              cell('', 400), cell('日期', 1600), cell('競賽/活動名稱', 3000),
-              cell('主辦單位', 1800), cell('獎項', 1400), cell('得獎類型', 1400),
-            ]}),
-            ...[1,2,3,4,5,6,7,8].map(n => new TableRow({ children: [
-              cell(n.toString(), 400), cell('', 1600), cell('', 3000), cell('', 1800), cell('', 1400), cell('', 1400),
-            ]})),
-          ]
-        }),
-        new Paragraph({ children: [new PageBreak()] })
-      );
-
-      // ===== 第6頁：國小階段標題頁（與PDF第6頁完全相同）=====
-      sections.push(
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 2000, after: 600 }, children: [new TextRun({ text: `國小階段: ${f.grade}年級`, font: FONT, size: 36, bold: true })] }),
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 }, children: [new TextRun({ text: '三、優弱勢分析', font: FONT, size: 28 })] }),
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 }, children: [new TextRun({ text: '四、課程需求評估', font: FONT, size: 28 })] }),
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 }, children: [new TextRun({ text: '五、教育目標與輔導重點', font: FONT, size: 28 })] }),
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 }, children: [new TextRun({ text: '六、相關會議記錄', font: FONT, size: 28 })] }),
-        new Paragraph({ children: [new PageBreak()] })
-      );
-
-      // ===== 第7頁：三、優弱勢能力評析（與PDF第7頁完全相同）=====
-      sections.push(
-        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '三、優弱勢能力評析（每學年評估一次）', font: FONT, size: 28, bold: true })] }),
-        new Paragraph({ spacing: { after: 50 }, children: [new TextRun({ text: '相關資優能力參考號碼', font: FONT, size: 22 })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [ cell('認知特質', 3300), cell('情意特質', 3400), cell('學科能力', 3300) ]}),
-            new TableRow({ children: [
-              cellLines(['①觀察能力','②記憶能力','③理解能力','④推理能力','⑤分析能力','⑥應用能力','⑦評鑑能力','⑧創造能力','⑨批判能力','⑩問題解決','⑪後設能力','⑫其他：','　　___________'], 3300, { size: 20 }),
-              cellLines(['⑬專注能力','⑭成就動機','⑮要求完美','⑯溝通協調','⑰情緒控制','⑱挫折容忍','⑲正向思考','⑳領導能力','㉑合作能力','㉒自信心','㉓同理心','㉔復原力','㉕其他：','　　___________'], 3400, { size: 20 }),
-              cellLines(['㉖數學','自然','　㉗物理','　㉘生物','　㉙化學','　㉚地科','語文','　㉛國文','　㉜英文','社會','　㉝歷史','　㉞地理','　㉟公民','㊱資訊','㊲生科','㊳其他：','　　___________'], 3300, { size: 20 }),
-            ]}),
-          ]
-        }),
-        new Paragraph({ spacing: { before: 150 }, children: [] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [
-              cell('年級', 800), cell('填寫日期', 1500), cell('填寫者\n(學生/家長/教師)', 2500),
-              cell('優勢能力(填代號)', 2600), cell('弱勢能力(填代號)', 2600),
-            ]}),
-            new TableRow({ children: [
-              cell(f.grade, 800),
-              cell(f.analysisDate || '', 1500),
-              cell(f.analysisWriter || `${f.caseTeacher}(教師)`, 2500),
-              cellLines([(f.strengths||[]).join(' ')], 2600, { size: 18 }),
-              cellLines([(f.weaknesses||[]).join(' ')], 2600, { size: 18 }),
-            ]}),
-          ]
-        }),
-        new Paragraph({ spacing: { before: 100, after: 50 }, children: [new TextRun({ text: '優弱勢能力綜合評析(質性描述)', font: FONT, size: 22 })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [ cellLines((f.analysisDescription || '').split('\n'), 10000) ]}),
-          ]
-        }),
-        new Paragraph({ children: [new PageBreak()] })
-      );
-
-      // ===== 四、課程需求評估 & 五、教育目標與輔導重點 =====
-      sections.push(
-        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '四、課程需求評估（每學期評估一次）', font: FONT, size: 24 })] }),
-        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '五、教育目標與輔導重點（每學期評估一次）', font: FONT, size: 24 })] }),
-        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '含學科、專題、獨立研究與特殊教育需求課程等', font: FONT, size: 20 })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [
-              cell('領域\n學習\n課程', 1500, { rowSpan: 2 }),
-              cellLines(['國語文　英語文　第二外國語　數學領域'], 8500, { span: 5 }),
-            ]}),
-            new TableRow({ children: [
-              cellLines(['社會領域　自然科學領域　藝術領域'], 8500, { span: 5 }),
-            ]}),
-            new TableRow({ children: [
-              cell('特殊\n需求\n課程', 1500, { rowSpan: 2 }),
-              cellLines(['■創造能力　□領導才能　□獨立研究　■情意發展　■專長領域'], 8500, { span: 5 }),
-            ]}),
-            new TableRow({ children: [
-              cellLines(['□創造能力　□領導才能　□獨立研究　□情意發展　□專長領域'], 8500, { span: 5 }),
-            ]}),
-          ]
-        }),
-        new Paragraph({ spacing: { after: 200 }, children: [] })
-      );
-
-      // 每個課程
-      (f.courses || []).filter(c => c.courseName).forEach((course, idx) => {
-        sections.push(
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [
-              new TableRow({ children: [
-                cell('學習領域', 1400), cell(course.domain, 2800),
-                cell('課程名稱', 1400), cell(course.courseName, 2000),
-                cell('授課教師', 1200), cell(course.teacher, 1600),
-              ]}),
-              new TableRow({ children: [
-                cell('學年/學期\n目標', 1400),
-                cellLines((course.goals || '').split('\n'), 9000, { span: 5 }),
-              ]}),
-              new TableRow({ children: [
-                cell('教育需求與\n輔導建議事\n項', 1400, { rowSpan: 3 }),
-                cellLines([
-                  '認知教學方面',
-                  '內容調整（■加深加廣　□獨立研究　□濃縮加速/縮短修業　□其他　　　）',
-                  '歷程調整（■思考訓練　□研究方法訓練　■學習策略訓練　■科技工具運用　□其他　　　）',
-                  '結果調整（□作業調整　□評量調整　■成果品質　■成果分享　□其他　　　）',
-                  '環境調整（□自學空間　□校外學習　□興趣中心　□校外交流　□其他　　　）',
-                ], 9000, { span: 5, size: 20 }),
-              ]}),
-              new TableRow({ children: [
-                cellLines([
-                  '情意輔導方面',
-                  '輔導重點（■情意技能　□親子互動　■同儕互動　■情緒調適　□壓力調適　■自我認識　□服務關懷　□自我期待　■學習動機　□生涯規劃　□其他　　　）',
-                  '輔導方式（■融入學科　■團體輔導　□小組輔導　□個別輔導　□親職教育　□其他　　　）',
-                ], 9000, { span: 5, size: 20 }),
-              ]}),
-              new TableRow({ children: [
-                cellLines([
-                  '技能培訓方面',
-                  '培訓重點（□生活技能　■學習技能　□時間管理　□自我管理　□其他　　　）',
-                  '培訓方式（■融入學科　□團體訓練　□小組訓練　□個別訓練　□其他　　　）',
-                ], 9000, { span: 5, size: 20 }),
-              ]}),
-            ]
-          }),
-          new Paragraph({ spacing: { after: 100 }, children: [] }),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [
-              new TableRow({ children: [
-                cell('項次', 700), cell('學習表現調整\n（調整部分請底線註記）', 5500),
-                cell('評量方式', 1600), cell('評量結果', 2200, { span: 2 }),
-              ]}),
-              new TableRow({ children: [
-                cell('', 700), cell('', 5500), cell('', 1600),
-                cell('學生\n自評', 1100), cell('教師\n評分', 1100),
-              ]}),
-              ...[1,2,3,4,5].map(n => new TableRow({ children: [
-                cell(n.toString(), 700), cell('', 5500), cell('', 1600), cell('', 1100), cell('', 1100),
-              ]})),
-            ]
-          }),
-          new Paragraph({ spacing: { after: 200 }, children: [] })
-        );
-      });
-
-      sections.push(new Paragraph({ children: [new PageBreak()] }));
-
-      // ===== 課表（與PDF第12頁完全相同）=====
-      const days = ['一','二','三','四','五'];
-      const periods = [
-        { name: '服裝', time: '' },
-        { name: '早自習', time: '08:00~08:40' },
-        { name: '1', time: '08:45~09:25' },
-        { name: '2', time: '09:35~10:15' },
-        { name: '3', time: '10:30~11:10' },
-        { name: '4', time: '11:20~12:00' },
-        { name: '午休', time: '12:25~13:05' },
-        { name: '5', time: '13:10~13:50' },
-        { name: '6', time: '14:00~14:40' },
-        { name: '7', time: '14:55~15:35' },
-      ];
-      const tt = f.timetable || {};
-
-      sections.push(
-        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '（二）課表(請標註抽離及外加課程之課程名稱)', font: FONT, size: 24 })] }),
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 50 }, children: [new TextRun({ text: `桃園市桃園區${f.school}國民小學 ${f.schoolYear}學年度`, font: FONT, size: 22 })] }),
-        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 100 }, children: [new TextRun({ text: `${f.grade}年${f.classNumber}班 資優班學生課表　導師 ${f.homeTeacher}老師`, font: FONT, size: 22 })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [
-              cell('　　星期\n節次', 1800),
-              cell('一', 1640), cell('二', 1640), cell('三', 1640), cell('四', 1640), cell('五', 1640),
-            ]}),
-            ...periods.map(p => new TableRow({ children: [
-              cell(p.name + (p.time ? '\n' + p.time : ''), 1800, { size: 18 }),
-              ...days.map(d => cell(tt[`${d}-${p.name}`] || '', 1640, { size: 18 }))
-            ]})),
-          ]
-        }),
-        new Paragraph({ spacing: { before: 100, after: 50 }, children: [new TextRun({ text: '課程安排說明：', font: FONT, size: 22 })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [
-              cell('【特需領域】課程名稱', 4000), cell('抽離／外加', 3000), cell('節數', 3000),
-            ]}),
-            ...(f.timetableNote || '').split('\n').filter(l=>l.trim()).map(line => {
-              const parts = line.split(/\s+/);
-              return new TableRow({ children: [
-                cell(parts[0] || '', 4000, { align: AlignmentType.LEFT }),
-                cell(parts[1] || '', 3000),
-                cell(parts[2] || '', 3000),
-              ]});
-            }),
-          ]
-        }),
-        new Paragraph({ children: [new PageBreak()] })
-      );
-
-      // ===== 六、相關會議紀錄（與PDF第18頁完全相同）=====
-      sections.push(
-        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '六、相關會議紀錄', font: FONT, size: 28, bold: true })] }),
-        new Paragraph({ spacing: { after: 150 }, children: [new TextRun({ text: '※可用各校會議紀錄格式，但應包含會議日期、地點、與會人員、討論事項、家長/學生回饋意見、決議或修正後之課程內容簡述、各相關處室核章處，並應附上簽到表。', font: FONT, size: 18 })] })
-      );
-
-      (f.meetings || []).filter(m => m.date).forEach((meeting, idx) => {
-        sections.push(
-          new Paragraph({ spacing: { before: 150, after: 100 }, children: [new TextRun({ text: meeting.title || `${f.schoolYear}學年度${f.semester} IGP 會議`, font: FONT, size: 24, bold: true })] }),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [
-              new TableRow({ children: [
-                cell('會議日期:', 1100), cell(meeting.date, 1400),
-                cell('時間:', 700), cell(meeting.time, 1600),
-                cell('地點:', 700), cell(meeting.location, 1600),
-                cell('記錄者:', 900), cell(meeting.recorder, 1200),
-              ]}),
-            ]
-          }),
-          new Paragraph({ spacing: { before: 100, after: 50 }, children: [new TextRun({ text: '與會人員: (簽到表)', font: FONT, size: 22 })] }),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [
-              new TableRow({ children: [ cellLines((meeting.attendees || '').split('\n'), 10000) ]}),
-            ]
-          }),
-          new Paragraph({ spacing: { before: 100, after: 50 }, children: [new TextRun({ text: '會議紀錄：（應含討論事項、家長/學生回饋意見、決議或修正課程內容）', font: FONT, size: 22 })] }),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [
-              new TableRow({ children: [ cellLines((meeting.content || '').split('\n'), 10000) ]}),
-            ]
-          }),
-          new Paragraph({ spacing: { before: 150, after: 50 }, children: [new TextRun({ text: '核章處', font: FONT, size: 22 })] }),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [
-              new TableRow({ children: [
-                cell('個管教師', 2500), cell('特教組長', 2500), cell('輔導主任', 2500), cell('校長', 2500),
-              ]}),
-              new TableRow({ children: [ cell('', 2500), cell('', 2500), cell('', 2500), cell('', 2500) ]}),
-            ]
-          }),
-          new Paragraph({ spacing: { after: 200 }, children: [] })
-        );
-      });
-
-      sections.push(new Paragraph({ children: [new PageBreak()] }));
-
-      // ===== 七、重新安置紀錄 & 八、晤談或輔導紀錄（與PDF第21頁完全相同）=====
-      sections.push(
-        new Paragraph({ spacing: { after: 100 }, children: [new TextRun({ text: '七、重新安置紀錄', font: FONT, size: 28, bold: true })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [
-              cell('日期', 1500), cell('評估需求說明', 3500), cell('評估結果概要敘述', 3500), cell('記錄人員', 1500),
-            ]}),
-            new TableRow({ children: [ cell('', 1500), cell('', 3500), cell('', 3500), cell('', 1500) ]}),
-          ]
-        }),
-        new Paragraph({ spacing: { before: 300, after: 100 }, children: [new TextRun({ text: '八、晤談或輔導紀錄', font: FONT, size: 28, bold: true })] }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({ children: [
-              cell('日期', 1000), cell('參與人員', 1200), cell('事件', 1500), cell('內容概要敘述', 2800), cell('處遇方式', 2000), cell('記錄人員', 1000),
-            ]}),
-            new TableRow({ children: [
-              cell('', 1000),
-              cellLines(['□本人','□母親','□父親','□其他','________'], 1200, { size: 18 }),
-              cell('', 1500), cell('', 2800),
-              cellLines(['□ 轉介二級','□ 協同導師','□ 定期晤談','□ 持續觀察','□ 其他 _______'], 2000, { size: 18 }),
-              cell('', 1000),
-            ]}),
-            new TableRow({ children: [
-              cell('', 1000),
-              cellLines(['□本人','□母親','□父親','□其他','________'], 1200, { size: 18 }),
-              cell('', 1500), cell('', 2800),
-              cellLines(['□ 轉介二級','□ 協同導師','□ 定期晤談','□ 持續觀察','□ 其他 _______'], 2000, { size: 18 }),
-              cell('', 1000),
-            ]}),
-          ]
-        }),
-        new Paragraph({ spacing: { before: 100 }, children: [new TextRun({ text: '※自行增刪表格。', font: FONT, size: 18 })] }),
-        new Paragraph({ children: [new TextRun({ text: '附件：如學習紀錄表、得獎資料、測驗紀錄等', font: FONT, size: 18 })] }),
-      );
-
-      const doc = new Document({
-        styles: { default: { document: { run: { font: FONT, size: 24 } } } },
-        sections: [{ 
-          properties: { 
-            page: { 
-              size: { width: 11906, height: 16838 }, 
-              margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 } 
-            } 
-          }, 
-          children: sections 
-        }]
-      });
-
-      const blob = await Packer.toBlob(doc);
-      saveAs(blob, `${f.schoolYear}學年度_${f.school}_${f.grade}年${f.classNumber}班_${f.studentName}_IGP.docx`);
-      showToast('✅ Word 文件已下載！');
-    }
-
-    function saveFormData() {
-      ['studentName','birthDate','gender','email','schoolYear','school','grade','classNumber','homeTeacher','guardian','guardianRelation','guardianPhone','address','actualCaregiver','economicStatus','parentingStyle','familyInteraction','parentExpectation','identificationNumber','caseTeacher','analysisDescription','analysisDate','analysisWriter','educationStage','giftedType','placementType','timetableNote'].forEach(field => {
-        const el = document.getElementById(field);
-        if (el) state.form[field] = el.value;
-      });
-      (state.form.courses || []).forEach((c, i) => {
-        ['domain','name','teacher','goals'].forEach(k => {
-          const el = document.getElementById(`course_${k}_${i}`);
-          if (el) state.form.courses[i][k === 'name' ? 'courseName' : k] = el.value;
-        });
-      });
-      ['一','二','三','四','五'].forEach(d => {
-        ['早自習','1','2','3','4','午休','5','6','7'].forEach(p => {
-          const el = document.getElementById(`tt_${d}-${p}`);
-          if (el) { if (!state.form.timetable) state.form.timetable = {}; state.form.timetable[`${d}-${p}`] = el.value; }
-        });
-      });
-      (state.form.meetings || []).forEach((m, i) => {
-        ['title','date','time','location','attendees','content','recorder'].forEach(k => {
-          const el = document.getElementById(`meeting_${k}_${i}`);
-          if (el) state.form.meetings[i][k] = el.value;
-        });
-      });
-    }
-
-    function bindEvents() {
-      document.querySelectorAll('input, select, textarea').forEach(el => {
-        el.addEventListener('change', saveFormData);
-        el.addEventListener('blur', saveFormData);
-      });
-      const pwdInput = document.getElementById('passwordInput');
-      if (pwdInput) pwdInput.addEventListener('keypress', e => { if (e.key === 'Enter') handleLogin(); });
-    }
-
-    render();
-  </script>
+<script src="lingang_db.js"></script>
+<script src="template_docx.js"></script>
+<script src="course_catalog.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
